@@ -1,0 +1,9 @@
+* The Haversine Distance Problem
+Going over motivation and python impl
+* "Clean Code" Horrible Performance
+* Instruction Decoding on the 8086
+- pg. 161 for the codes
+- 
+** HW
+- Use NASM to turn .asm file into binary
+- Write program that will disassamble binary to .asm
