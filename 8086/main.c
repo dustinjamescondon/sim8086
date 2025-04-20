@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #define i16 int16_t
 #define u16 uint16_t
@@ -18,7 +19,7 @@ typedef enum {
 } Operation;
 
 typedef enum {
-  AL,
+  AL = 0,
   CL,
   DL,
   BL,
@@ -37,22 +38,22 @@ typedef enum {
 } Register;
 
 const char* reg_names[] = {
-  "AL",
-  "CL",
-  "DL",
-  "BL",
-  "AH",
-  "CH",
-  "DH",
-  "BH",
-  "AX",
-  "CX",
-  "DX",
-  "BX",
-  "SP",
-  "BP",
-  "SI",
-  "DI"
+  "al",
+  "cl",
+  "dl",
+  "bl",
+  "ah",
+  "ch",
+  "dh",
+  "bh",
+  "ax",
+  "cx",
+  "dx",
+  "bx",
+  "sp",
+  "bp",
+  "si",
+  "di"
 };
 
 typedef struct{
@@ -105,13 +106,14 @@ Register decode_w1(u8 reg) {
     case 0x07:
       return DI;
     default:
+      exit(1);
       return -1;
     }
 }
 
 OpCode decode(u16 code) {
-  u8 reg1 = code & REG1_MASK >> REG1_SHIFT;
-  u8 reg2 = code & REG2_MASK >> REG2_SHIFT;
+  u8 reg1 = (code & REG1_MASK) >> REG1_SHIFT;
+  u8 reg2 = (code & REG2_MASK) >> REG2_SHIFT;
   u8 w = code & W_MASK >> W_SHIFT;
 
   Register first = w ? decode_w1(reg1) : decode_w0(reg1);
@@ -124,14 +126,47 @@ OpCode decode(u16 code) {
 }
 
 void print_opcode(const OpCode* opcode) {  
-  printf("mov %s %s", reg_names[opcode->Register1], reg_names[opcode->Register2]);
+  printf("mov %s, %s", reg_names[opcode->Register1], reg_names[opcode->Register2]);
 }
 
+#ifndef TEST
 int main(int argc, char *argv[]) {
-  
-  i16 something = 1;
-  u16 somethingelse = 1;
-  printf("Hello, %s\n", argv[0]);
-  printf("size is %d\n", sizeof(i16));
+#if 0
+  if(argc <= 1) {
+    printf("file arg not provided\n");
+    return -1;
+  }
+  const char* filename = argv[1];
+#else 
+  const char* filename = "listing_37";
+#endif
+
+  FILE *fptr = NULL;
+  fptr = fopen(filename, "rb");
+
+  if(fptr == NULL) {
+    printf("Couldn't open the file %s\n", filename);
+    return -1;
+  }
+
+  u16 buffer;
+  while(fread(&buffer, sizeof(u16), 1, fptr)) {
+    OpCode code = decode(buffer);
+    print_opcode(&code);
+    printf("\n");
+  }
   return 0;
 }
+
+#else
+#include <assert.h>
+
+int main(int argc, char** arcv) {
+  Register result = decode_w1(0x03);
+  Register expected = BX;
+
+  //printf("Expected %s, result %s\n", expected, result);
+  assert(expected == result);
+  return 0;
+}
+#endif
