@@ -3,11 +3,21 @@
 
 #define i16 int16_t
 #define u16 uint16_t
+#define u8 char
 #define W_MASK 0x0100   // 00000001,00000000
-#define REG_MASK 0x0038 // 00000000,00111000
-#define REG_SHIFT 3
+#define W_SHIFT 8
+#define REG1_MASK 0x0038 // 00000000,00111000
+#define REG2_MASK 0x0007 // 00000000,00000111
+#define REG1_SHIFT 3
+#define REG2_SHIFT 0
+#define OPCODE_MASK 0xFC00
+#define OPCODE_SHIFT 10
 
-enum Name {
+typedef enum {
+  MOV
+} Operation;
+
+typedef enum {
   AL,
   CL,
   DL,
@@ -24,10 +34,74 @@ enum Name {
   BP,
   SI,
   DI,
-};
+} Register;
 
-Name decode(u16 code) {
-  
+typedef struct{
+  Operation Operation;
+  Register Register1;
+  Register Register2;
+} FullOperation;
+
+Register decode_w0(u8 reg) {
+  switch (reg)
+    {
+    case 0x00:
+      return AL;
+    case 0x01:
+      return CL;
+    case 0x02:
+      return DL;
+    case 0x03:
+      return BL;
+    case 0x04:
+      return AH;
+    case 0x05:
+      return CH;
+    case 0x06:
+      return DH;
+    case 0x07:
+      return BH;
+    default:
+      return  -1;
+    }
+}
+
+Register decode_w1(u8 reg) {
+  switch (reg)
+    {
+    case 0x00:
+      return AX;
+    case 0x01:
+      return CX;
+    case 0x02:
+      return DX;
+    case 0x03:
+      return BX;
+    case 0x04:
+      return SP;
+    case 0x05:
+      return BP;
+    case 0x06:
+      return SI;
+    case 0x07:
+      return DI;
+    default:
+      return -1;
+    }
+}
+
+FullOperation decode(u16 code) {
+  u8 reg1 = code & REG1_MASK >> REG1_SHIFT;
+  u8 reg2 = code & REG2_MASK >> REG2_SHIFT;
+  u8 w = code & W_MASK >> W_SHIFT;
+
+  Register first = w ? decode_w1(reg1) : decode_w0(reg1);
+  Register second = w ? decode_w1(reg2) : decode_w0(reg2);
+  FullOperation result;
+  result.Operation = MOV;
+  result.Register1 = first;
+  result.Register2 = second;
+  return result;
 }
 
 int main(int argc, char *argv[]) {
