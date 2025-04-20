@@ -33,14 +33,33 @@ typedef enum {
   SP,
   BP,
   SI,
-  DI,
+  DI
 } Register;
+
+const char* reg_names[] = {
+  "AL",
+  "CL",
+  "DL",
+  "BL",
+  "AH",
+  "CH",
+  "DH",
+  "BH",
+  "AX",
+  "CX",
+  "DX",
+  "BX",
+  "SP",
+  "BP",
+  "SI",
+  "DI"
+};
 
 typedef struct{
   Operation Operation;
   Register Register1;
   Register Register2;
-} FullOperation;
+} OpCode;
 
 Register decode_w0(u8 reg) {
   switch (reg)
@@ -90,21 +109,26 @@ Register decode_w1(u8 reg) {
     }
 }
 
-FullOperation decode(u16 code) {
+OpCode decode(u16 code) {
   u8 reg1 = code & REG1_MASK >> REG1_SHIFT;
   u8 reg2 = code & REG2_MASK >> REG2_SHIFT;
   u8 w = code & W_MASK >> W_SHIFT;
 
   Register first = w ? decode_w1(reg1) : decode_w0(reg1);
   Register second = w ? decode_w1(reg2) : decode_w0(reg2);
-  FullOperation result;
+  OpCode result;
   result.Operation = MOV;
   result.Register1 = first;
   result.Register2 = second;
   return result;
 }
 
+void print_opcode(const OpCode* opcode) {  
+  printf("mov %s %s", reg_names[opcode->Register1], reg_names[opcode->Register2]);
+}
+
 int main(int argc, char *argv[]) {
+  
   i16 something = 1;
   u16 somethingelse = 1;
   printf("Hello, %s\n", argv[0]);
