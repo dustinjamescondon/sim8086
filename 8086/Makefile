@@ -9,3 +9,6 @@ main_dgb: main.c
 test: main.c
 	$(CC) -o test main.c -g -DTEST
 	./test
+
+test_dbg: main.c
+	$(CC) -o test main.c -g -DTEST

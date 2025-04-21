@@ -162,11 +162,13 @@ int main(int argc, char *argv[]) {
 #include <assert.h>
 
 int main(int argc, char** arcv) {
-  Register result = decode_w1(0x03);
-  Register expected = BX;
 
-  //printf("Expected %s, result %s\n", expected, result);
-  assert(expected == result);
+  u16 bin = 0b1000100111011001;
+  OpCode result = decode(bin);
+  Register expRegLeft = CX;
+  Register expRegRight = BX;  
+  assert(expRegLeft == result.Register2 && "Left register incorrect");
+  assert(expRegRight == result.Register1 && "Right register incorrect");
   return 0;
 }
 #endif
