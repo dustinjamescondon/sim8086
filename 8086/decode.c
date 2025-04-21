@@ -2,9 +2,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define i16 int16_t
-#define u16 uint16_t
-#define u8 char
+typedef int16_t i16;
+typedef uint16_t u16;
+typedef unsigned char u8;
 #define W_MASK 0x0100   // 00000001,00000000
 #define W_SHIFT 8
 #define REG1_MASK 0x0038 // 00000000,00111000
@@ -126,5 +126,20 @@ OpCode decode(u16 code) {
 }
 
 void print_opcode(const OpCode* opcode) {  
-  printf("mov %s, %s", reg_names[opcode->Register1], reg_names[opcode->Register2]);
+  printf("mov %s, %s", reg_names[opcode->Register2], reg_names[opcode->Register1]);
+}
+
+
+u16 join(u8 lower, u8 upper) {
+  u16 padded_upper = (u16)upper;
+  u16 padded_lower = (u16)lower;
+  return (padded_lower << 8) | (padded_upper);
+}
+
+u8 upper(u16 data) {
+  return (u8)((data & 0xFF00) >> 8);
+}
+
+u8 lower(u16 data) {
+  return (u8)(data & 0x00FF);
 }

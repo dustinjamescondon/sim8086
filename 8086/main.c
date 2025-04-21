@@ -17,8 +17,8 @@ int main(int argc, char *argv[]) {
 
   u16 buffer;
   while(fread(&buffer, sizeof(u16), 1, fptr)) {
-    printf("%#18x\n", buffer);
-    OpCode code = decode(buffer);
+    u16 _buffer = join(lower(buffer), upper(buffer));
+    OpCode code = decode(_buffer);
     print_opcode(&code);
     printf("\n");
   }

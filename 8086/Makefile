@@ -15,7 +15,9 @@ test: test.c decode.c
 
 read_test: read_test.c decode.c
 	$(CC) -o read_test read_test.c -g -DTEST
-	./read_test listing_37
+	./read_test ./listing_37
 
 test_dbg: test.c decode.c 
 	$(CC) -o test test.c -g -DTEST
+
+all_tests: test read_test
