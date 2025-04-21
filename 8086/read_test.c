@@ -1,4 +1,5 @@
 #include "decode.c"
+#include "assert.h"
 
 int main(int argc, char *argv[]) {
   if(argc <= 1) {
@@ -22,5 +23,9 @@ int main(int argc, char *argv[]) {
     print_opcode(&code);
     printf("\n");
   }
+
+  u16 expected = 0b1000100111011001;
+
+  assert(expected == buffer);
   return 0;
 }

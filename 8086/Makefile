@@ -1,14 +1,21 @@
 CC=gcc
 
-main: main.c
+main: main.c decode.c
 	$(CC) -o main main.c
 
-main_dgb: main.c
+run: main
+	./main listing_37
+
+main_dgb: main.c decode.c
 	$(CC) -o main main.c -g
 
-test: main.c
-	$(CC) -o test main.c -g -DTEST
+test: test.c decode.c
+	$(CC) -o test test.c -g -DTEST
 	./test
 
-test_dbg: main.c
-	$(CC) -o test main.c -g -DTEST
+read_test: read_test.c decode.c
+	$(CC) -o read_test read_test.c -g -DTEST
+	./read_test listing_37
+
+test_dbg: test.c decode.c 
+	$(CC) -o test test.c -g -DTEST
