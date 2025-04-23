@@ -114,7 +114,7 @@ Register decode_w1(u8 reg) {
 OpCode decode(u16 code) {
   u8 reg1 = (code & REG1_MASK) >> REG1_SHIFT;
   u8 reg2 = (code & REG2_MASK) >> REG2_SHIFT;
-  u8 w = code & W_MASK >> W_SHIFT;
+  u8 w = (code & W_MASK) >> W_SHIFT;
 
   Register first = w ? decode_w1(reg1) : decode_w0(reg1);
   Register second = w ? decode_w1(reg2) : decode_w0(reg2);
