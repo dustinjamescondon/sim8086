@@ -2,10 +2,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
-
-typedef int16_t i16;
-typedef uint16_t u16;
-typedef unsigned char u8;
+#include <assert.h>
+#include "bit_ops.c"
 
 typedef enum {
   MOV_REG_REG, // register to register
@@ -105,26 +103,6 @@ Register decode_w1(u8 reg) {
     }
 }
 
-Instruction decode(u16 code) {
-  static const u16 REG1_MASK = 0x0038; // 00000000,00111000
-  static const u16 REG2_MASK = 0x0007; // 00000000,00000111
-  static const u16 REG1_SHIFT = 3;
-  static const u16 REG2_SHIFT = 0;
-  static const u16 W_MASK = 0x0100;   // 00000001,00000000
-  
-  u8 reg1 = (code & REG1_MASK) >> REG1_SHIFT;
-  u8 reg2 = (code & REG2_MASK) >> REG2_SHIFT;
-  u16 w = code & W_MASK;
-
-  Register first = w ? decode_w1(reg1) : decode_w0(reg1);
-  Register second = w ? decode_w1(reg2) : decode_w0(reg2);
-  Instruction result;
-  result.Operation = MOV_REG_REG;
-  result.Register1 = first;
-  result.Register2 = second;
-  return result;
-}
-
 bool matches(u8 code, u8 pattern, u8 mask) {
   u8 masked_code = code & mask;
   return masked_code == pattern;
@@ -146,20 +124,43 @@ Operation decode_operation(u8 code) {
   return 0;
 }
 
+Instruction decode(u16 code) {
+  Operation operation = decode_operation(upper(code));
+
+  switch (operation) {
+  case(MOV_REG_REG):
+    {
+      static const u16 REG1_MASK = 0x0038; // 00000000,00111000
+      static const u16 REG2_MASK = 0x0007; // 00000000,00000111
+      static const u16 REG1_SHIFT = 3;
+      static const u16 REG2_SHIFT = 0;
+      static const u16 W_MASK = 0x0100;   // 00000001,00000000
+    
+      u8 reg1 = (code & REG1_MASK) >> REG1_SHIFT;
+      u8 reg2 = (code & REG2_MASK) >> REG2_SHIFT;
+      u16 w = code & W_MASK;
+
+      Register first = w ? decode_w1(reg1) : decode_w0(reg1);
+      Register second = w ? decode_w1(reg2) : decode_w0(reg2);
+    
+      Instruction result;
+      result.Operation = MOV_REG_REG;
+      result.Register1 = first;
+      result.Register2 = second;
+      return result;
+    }
+  case MOV_IM_REG:
+    {
+      static const u16 REG_MASK = 0x0300;
+      static const u16 W_MASK = 0x0100;   // 00001000,00000000
+      u16 w = code & W_MASK;
+    }
+  default:
+    assert(false);
+    break;
+  }    
+}
+
 void print_opcode(const Instruction* opcode) {  
   printf("mov %s, %s", reg_names[opcode->Register2], reg_names[opcode->Register1]);
-}
-
-u16 join(u8 lower, u8 upper) {
-  u16 padded_upper = (u16)upper;
-  u16 padded_lower = (u16)lower;
-  return (padded_lower) | (padded_upper << 8);
-}
-
-u8 upper(u16 data) {
-  return (u8)((data & 0xFF00) >> 8);
-}
-
-u8 lower(u16 data) {
-  return (u8)(data & 0x00FF);
 }
