@@ -6,10 +6,6 @@
 typedef int16_t i16;
 typedef uint16_t u16;
 typedef unsigned char u8;
-#define REG1_SHIFT 3
-#define REG2_SHIFT 0
-#define OPCODE_MASK 0xFC00
-#define OPCODE_SHIFT 10
 
 typedef enum {
   MOV_REG_REG, // register to register
@@ -112,6 +108,9 @@ Register decode_w1(u8 reg) {
 Instruction decode(u16 code) {
   static const u16 REG1_MASK = 0x0038; // 00000000,00111000
   static const u16 REG2_MASK = 0x0007; // 00000000,00000111
+  static const u16 REG1_SHIFT = 3;
+  static const u16 REG2_SHIFT = 0;
+
   static const u16 W_MASK = 0x0100;   // 00000001,00000000
   static const u16 W_SHIFT = 8;
   
