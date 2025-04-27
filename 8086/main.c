@@ -16,13 +16,30 @@ int main(int argc, char *argv[]) {
   }
 
   printf("bits 16\n\n");
-  
-  u16 buffer;
-  while(fread(&buffer, sizeof(u16), 1, fptr)) {
-    u16 _buffer = join(upper(buffer), lower(buffer));
-    Instruction code = decode(_buffer);
+
+  // First read into the buffer
+  static const u16 max_buffer_size = 1000;
+  u8 buffer[max_buffer_size];
+  u16 buffer_size = 0;
+  {
+    u16 buffer_pos = 0;
+    while(fread(buffer + buffer_pos, sizeof(u8), 1, fptr)) {
+      buffer_pos = buffer_pos + 1;
+    }
+    buffer_size = buffer_pos + 1;
+  }
+
+  assert(max_buffer_size >= buffer_size && "Buffer too small for the file");
+
+  // Next decode the buffer
+  u16 current_buffer_pos = 0;
+  while(current_buffer_pos < buffer_size - 1) {
+    u16 move = 0;
+    Instruction code = decode(buffer + current_buffer_pos, &move);
+    current_buffer_pos = current_buffer_pos + move;
     print_instruction(&code);
     printf("\n");
   }
+  
   return 0;
 }

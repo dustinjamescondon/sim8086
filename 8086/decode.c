@@ -124,8 +124,9 @@ Operation decode_operation(u8 code) {
   return 0;
 }
 
-Instruction decode(u16 code) {
-  Operation operation = decode_operation(upper(code));
+Instruction decode(const u8* buffer, u16* move) {
+  u8 leading_byte = buffer[0];
+  Operation operation = decode_operation(leading_byte);
 
   switch (operation) {
   case(MOV_REG_REG):
@@ -135,7 +136,9 @@ Instruction decode(u16 code) {
       static const u16 REG1_SHIFT = 3;
       static const u16 REG2_SHIFT = 0;
       static const u16 W_MASK = 0x0100;   // 00000001,00000000
-    
+
+      u16 code = join(buffer[1], buffer[0]);
+      
       u8 reg1 = (code & REG1_MASK) >> REG1_SHIFT;
       u8 reg2 = (code & REG2_MASK) >> REG2_SHIFT;
       u16 w = code & W_MASK;
@@ -147,13 +150,18 @@ Instruction decode(u16 code) {
       result.Operation = MOV_REG_REG;
       result.Register1 = first;
       result.Register2 = second;
+
+      *move = 2;
       return result;
     }
   case MOV_IM_REG:
     {
       static const u16 REG_MASK = 0x0300;
       static const u16 W_MASK = 0x0100;   // 00001000,00000000
+
+      u16 code = join(buffer[0], buffer[1]);
       u16 w = code & W_MASK;
+      *move = 2;
     }
   default:
     assert(false);
