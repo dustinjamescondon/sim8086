@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 typedef int16_t i16;
 typedef uint16_t u16;
@@ -11,7 +12,8 @@ typedef unsigned char u8;
 #define OPCODE_SHIFT 10
 
 typedef enum {
-  MOV
+  MOV_REG_REG, // register to register
+  MOV_IM_REG // immediate to register
 } Operation;
 
 typedef enum {
@@ -120,10 +122,31 @@ Instruction decode(u16 code) {
   Register first = w ? decode_w1(reg1) : decode_w0(reg1);
   Register second = w ? decode_w1(reg2) : decode_w0(reg2);
   Instruction result;
-  result.Operation = MOV;
+  result.Operation = MOV_REG_REG;
   result.Register1 = first;
   result.Register2 = second;
   return result;
+}
+
+bool matches(u8 code, u8 pattern, u8 mask) {
+  u8 masked_code = code & mask;
+  return masked_code == pattern;
+}
+
+Operation decode_operation(u8 code) {
+  static const u8 reg_to_reg = 0b10001000;
+  static const u8 reg_to_reg_mask = 0b11111100;
+  
+  static const u8 im_to_reg = 0b10110000;
+  static const u8 im_to_reg_mask = 0b11110000;
+
+  if(matches(code, reg_to_reg, reg_to_reg_mask)) {
+    return MOV_REG_REG;
+  } else if(matches(code, im_to_reg, im_to_reg_mask)) {
+    return MOV_IM_REG;
+  }
+  
+  return 0;
 }
 
 void print_opcode(const Instruction* opcode) {  
