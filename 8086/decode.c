@@ -161,6 +161,6 @@ Instruction decode(u16 code) {
   }    
 }
 
-void print_opcode(const Instruction* opcode) {  
+void print_instruction(const Instruction* opcode) {  
   printf("mov %s, %s", reg_names[opcode->Register2], reg_names[opcode->Register1]);
 }
