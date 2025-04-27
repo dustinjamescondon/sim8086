@@ -35,10 +35,10 @@ int main(int argc, char *argv[]) {
   u16 current_buffer_pos = 0;
   while(current_buffer_pos < buffer_size - 1) {
     u16 move = 0;
-    Instruction code = decode(buffer + current_buffer_pos, &move);
+    char assembly[500];
+    decode(buffer + current_buffer_pos, &move, assembly);
+    printf("%s\n", assembly);
     current_buffer_pos = current_buffer_pos + move;
-    print_instruction(&code);
-    printf("\n");
   }
   
   return 0;

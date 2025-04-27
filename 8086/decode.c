@@ -124,7 +124,8 @@ Operation decode_operation(u8 code) {
   return 0;
 }
 
-Instruction decode(const u8* buffer, u16* move) {
+// Fills out the result field with the assembly
+void decode(const u8* buffer, u16* move, char result[]) {
   u8 leading_byte = buffer[0];
   Operation operation = decode_operation(leading_byte);
 
@@ -145,23 +146,32 @@ Instruction decode(const u8* buffer, u16* move) {
 
       Register first = w ? decode_w1(reg1) : decode_w0(reg1);
       Register second = w ? decode_w1(reg2) : decode_w0(reg2);
-    
-      Instruction result;
-      result.Operation = MOV_REG_REG;
-      result.Register1 = first;
-      result.Register2 = second;
-
+     
+      sprintf(result, "mov %s, %s", reg_names[second], reg_names[first]);
+      
       *move = 2;
-      return result;
+      return;
     }
   case MOV_IM_REG:
     {
-      static const u16 REG_MASK = 0x0300;
-      static const u16 W_MASK = 0x0100;   // 00001000,00000000
-
-      u16 code = join(buffer[0], buffer[1]);
-      u16 w = code & W_MASK;
-      *move = 2;
+      static const u8 REG_MASK = 0x03;
+      static const u8 W_MASK = 0b00001000;
+      u8 w = buffer[0] & W_MASK;
+      
+      if(w) {
+	Register reg = decode_w1((buffer[0] & REG_MASK) >> 0);
+	u16 data = join(buffer[1], buffer[2]);
+	sprintf(result, "mov %s, %d", reg_names[reg], data);
+	*move = 3;
+	return;
+      }
+      else {
+	Register reg = decode_w0((buffer[0] & REG_MASK) >> 0);
+	u8 data = buffer[1];
+	sprintf(result, "mov %s, %d", reg_names[reg], data);
+	*move = 2;
+	return;
+      }
     }
   default:
     assert(false);
