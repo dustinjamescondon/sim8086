@@ -5,10 +5,6 @@
 typedef int16_t i16;
 typedef uint16_t u16;
 typedef unsigned char u8;
-#define W_MASK 0x0100   // 00000001,00000000
-#define W_SHIFT 8
-#define REG1_MASK 0x0038 // 00000000,00111000
-#define REG2_MASK 0x0007 // 00000000,00000111
 #define REG1_SHIFT 3
 #define REG2_SHIFT 0
 #define OPCODE_MASK 0xFC00
@@ -112,6 +108,11 @@ Register decode_w1(u8 reg) {
 }
 
 OpCode decode(u16 code) {
+  static const u16 REG1_MASK = 0x0038; // 00000000,00111000
+  static const u16 REG2_MASK = 0x0007; // 00000000,00000111
+  static const u16 W_MASK = 0x0100;   // 00000001,00000000
+  static const u16 W_SHIFT = 8;
+  
   u8 reg1 = (code & REG1_MASK) >> REG1_SHIFT;
   u8 reg2 = (code & REG2_MASK) >> REG2_SHIFT;
   u8 w = (code & W_MASK) >> W_SHIFT;
