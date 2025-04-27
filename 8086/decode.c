@@ -56,7 +56,7 @@ typedef struct{
   Operation Operation;
   Register Register1;
   Register Register2;
-} OpCode;
+} Instruction;
 
 Register decode_w0(u8 reg) {
   switch (reg)
@@ -107,7 +107,7 @@ Register decode_w1(u8 reg) {
     }
 }
 
-OpCode decode(u16 code) {
+Instruction decode(u16 code) {
   static const u16 REG1_MASK = 0x0038; // 00000000,00111000
   static const u16 REG2_MASK = 0x0007; // 00000000,00000111
   static const u16 W_MASK = 0x0100;   // 00000001,00000000
@@ -119,14 +119,14 @@ OpCode decode(u16 code) {
 
   Register first = w ? decode_w1(reg1) : decode_w0(reg1);
   Register second = w ? decode_w1(reg2) : decode_w0(reg2);
-  OpCode result;
+  Instruction result;
   result.Operation = MOV;
   result.Register1 = first;
   result.Register2 = second;
   return result;
 }
 
-void print_opcode(const OpCode* opcode) {  
+void print_opcode(const Instruction* opcode) {  
   printf("mov %s, %s", reg_names[opcode->Register2], reg_names[opcode->Register1]);
 }
 
