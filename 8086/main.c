@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
   
   u16 buffer;
   while(fread(&buffer, sizeof(u16), 1, fptr)) {
-    u16 _buffer = join(lower(buffer), upper(buffer));
+    u16 _buffer = join(upper(buffer), lower(buffer));
     Instruction code = decode(_buffer);
     print_opcode(&code);
     printf("\n");

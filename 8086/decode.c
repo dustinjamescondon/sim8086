@@ -110,13 +110,11 @@ Instruction decode(u16 code) {
   static const u16 REG2_MASK = 0x0007; // 00000000,00000111
   static const u16 REG1_SHIFT = 3;
   static const u16 REG2_SHIFT = 0;
-
   static const u16 W_MASK = 0x0100;   // 00000001,00000000
-  static const u16 W_SHIFT = 8;
   
   u8 reg1 = (code & REG1_MASK) >> REG1_SHIFT;
   u8 reg2 = (code & REG2_MASK) >> REG2_SHIFT;
-  u8 w = (code & W_MASK) >> W_SHIFT;
+  u16 w = code & W_MASK;
 
   Register first = w ? decode_w1(reg1) : decode_w0(reg1);
   Register second = w ? decode_w1(reg2) : decode_w0(reg2);
@@ -152,11 +150,10 @@ void print_opcode(const Instruction* opcode) {
   printf("mov %s, %s", reg_names[opcode->Register2], reg_names[opcode->Register1]);
 }
 
-
 u16 join(u8 lower, u8 upper) {
   u16 padded_upper = (u16)upper;
   u16 padded_lower = (u16)lower;
-  return (padded_lower << 8) | (padded_upper);
+  return (padded_lower) | (padded_upper << 8);
 }
 
 u8 upper(u16 data) {
