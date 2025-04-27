@@ -7,3 +7,67 @@ Going over motivation and python impl
 ** HW
 - Use NASM to turn .asm file into binary
 - Write program that will disassamble binary to .asm
+* Decoding Multiple Instructions
+** Notes
+Memory-to-register move, or register-to-memory requires processing the MOD part
+
+- 11: don't need extra bytes
+- 01: need extra bytes
+
+
+MOV AX, [75]
+    --- ----
+    to  from
+
+BX is a 16 bit register
+
+Move straight-forward
+MOV BX, [BP + 75]
+Effective address: get what's in BP add 75 to it
+Halmark of Intel encoding
+
+W 0:  8 bit
+W 1: 16 bit (wide)
+
+D 0: memory is dest, and register source
+D 1: register is dest, memory is source
+
+MOD field tells us if we're doing "effective addressing" or displacement
+
+Look at the MOD field first
+
+MOD 11: register register
+MOD 00: no displacement (caveat)
+MOD 01: 8 bit displacement
+MOD 10: 16 bit displacement
+
+R/M field encodes which equ out of 8 we use
+
+BX + SI
+BX + PI
+BP + SI
+
+
+| High | Low |
+|------+-----|
+| AH   | AL  |
+| BH   | BL  |
+| CH   | CL  |
+| DH   | DL  |
+
+|    |
+|----|
+| SP |
+| BD |
+| SI |
+| DI |
+*** Sometimes 00 is a direct address
+R/M 110
+00 and BP (16 bit)
+
+*** New instruction to parse: Immediate Move
+1011 W REG
+MOV AX, 12
+** TODO
+- [ ] Make diff rest for previous homework
+- [ ] Print the 16 bit thing 

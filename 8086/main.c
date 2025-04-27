@@ -15,6 +15,8 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
+  printf("bits 16\n\n");
+  
   u16 buffer;
   while(fread(&buffer, sizeof(u16), 1, fptr)) {
     u16 _buffer = join(lower(buffer), upper(buffer));
