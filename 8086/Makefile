@@ -8,3 +8,4 @@ sim8086_dbg: main.c decode.c
 
 unit_test: unit_test.c decode.c
 	$(CC) -o unit_test unit_test.c -g
+	./unit_test
