@@ -10,26 +10,7 @@ typedef enum {
   MOV_IM_REG // immediate to register
 } Operation;
 
-typedef enum {
-  AL = 0,
-  CL,
-  DL,
-  BL,
-  AH,
-  CH,
-  DH,
-  BH,
-  AX,
-  CX,
-  DX,
-  BX,
-  SP,
-  BP,
-  SI,
-  DI
-} Register;
-
-const char* reg_names[] = {
+const char* w0_reg_names[] = {    
   "al",
   "cl",
   "dl",
@@ -37,7 +18,10 @@ const char* reg_names[] = {
   "ah",
   "ch",
   "dh",
-  "bh",
+  "bh"
+};
+
+const char* w1_reg_names[] = {    
   "ax",
   "cx",
   "dx",
@@ -47,59 +31,6 @@ const char* reg_names[] = {
   "si",
   "di"
 };
-
-typedef struct{
-  Operation Operation;
-  Register Register1;
-  Register Register2;
-} Instruction;
-
-Register decode_w0(u8 reg) {
-  switch (reg)
-    {
-    case 0x00:
-      return AL;
-    case 0x01:
-      return CL;
-    case 0x02:
-      return DL;
-    case 0x03:
-      return BL;
-    case 0x04:
-      return AH;
-    case 0x05:
-      return CH;
-    case 0x06:
-      return DH;
-    case 0x07:
-      return BH;
-    default:
-      return  -1;
-    }
-}
-
-Register decode_w1(u8 reg) {
-  switch (reg)
-    {
-    case 0x00:
-      return AX;
-    case 0x01:
-      return CX;
-    case 0x02:
-      return DX;
-    case 0x03:
-      return BX;
-    case 0x04:
-      return SP;
-    case 0x05:
-      return BP;
-    case 0x06:
-      return SI;
-    case 0x07:
-      return DI;
-    default:
-    }
-}
 
 bool matches(u8 code, u8 pattern, u8 mask) {
   u8 masked_code = code & mask;
@@ -152,7 +83,7 @@ void decode(const u8* buffer, u16* move, char result[]) {
       static const u8 MOD_SHIFT = 6;
       u8 mod = (buffer[1] & MOD_MASK) >> MOD_SHIFT;
 
-      Register second = w ? decode_w1(reg2) : decode_w0(reg2);
+      const char* second_reg = w ? w1_reg_names[reg2] : w0_reg_names[reg2];
       
       switch(mod)
 	{
@@ -170,7 +101,7 @@ void decode(const u8* buffer, u16* move, char result[]) {
 	  };
 
 	  u8 rm = (buffer[1] & RM_MASK) >> RM_SHIFT;
-	  sprintf(result, "mov %s, %s", reg_names[second], MOD00[rm]);
+	  sprintf(result, "mov %s, %s", second_reg, MOD00[rm]);
 	  *move = 2;
 	  return;
 	}
@@ -181,9 +112,9 @@ void decode(const u8* buffer, u16* move, char result[]) {
 	  *move = 2;
 	  return;
 	case 0b00000011:{
-	  Register first = w ? decode_w1(reg1) : decode_w0(reg1);
+	  const char* first_reg = w ? w1_reg_names[reg1] : w0_reg_names[reg1];
      
-	  sprintf(result, "mov %s, %s", reg_names[second], reg_names[first]);
+	  sprintf(result, "mov %s, %s", second_reg, first_reg);
       
 	  *move = 2;
 	  return;
@@ -196,16 +127,16 @@ void decode(const u8* buffer, u16* move, char result[]) {
 	u8 w = buffer[0] & W_MASK;
       
 	if(w) {
-	  Register reg = decode_w1((buffer[0] & REG_MASK) >> 0);
+	  const char* reg = w1_reg_names[(buffer[0] & REG_MASK) >> 0];
 	  u16 data = join(buffer[1], buffer[2]);
-	  sprintf(result, "mov %s, %d", reg_names[reg], data);
+	  sprintf(result, "mov %s, %d", reg, data);
 	  *move = 3;
 	  return;
 	}
 	else {
-	  Register reg = decode_w0((buffer[0] & REG_MASK) >> 0);
+	  const char* reg = w0_reg_names[(buffer[0] & REG_MASK) >> 0];
 	  u8 data = buffer[1];
-	  sprintf(result, "mov %s, %d", reg_names[reg], data);
+	  sprintf(result, "mov %s, %d", reg, data);
 	  *move = 2;
 	  return;
 	}
@@ -217,6 +148,3 @@ void decode(const u8* buffer, u16* move, char result[]) {
   }
 }
 
-void print_instruction(const Instruction* opcode) {  
-  printf("mov %s, %s", reg_names[opcode->Register2], reg_names[opcode->Register1]);
-}
