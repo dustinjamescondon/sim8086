@@ -69,7 +69,6 @@ void decode(const u8* buffer, u16* move, char result[]) {
       static const u8 RM_MASK = 0b00111000;
       static const u8 RM_SHIFT = 3;
       u8 rm = (buffer[1] & RM_MASK) >> RM_SHIFT;
-      
       u16 code = join(buffer[1], buffer[0]);
       
       u8 reg1 = (code & REG1_MASK) >> REG1_SHIFT;
@@ -100,17 +99,46 @@ void decode(const u8* buffer, u16* move, char result[]) {
 	    "bx"
 	  };
 
-	  u8 rm = (buffer[1] & RM_MASK) >> RM_SHIFT;
 	  sprintf(result, "mov %s, %s", second_reg, MOD00[rm]);
 	  *move = 2;
 	  return;
 	}
-	case 0b00000001:
-	  *move = 2;
+	case 0b00000001: {
+	  // Index these by r/m
+	  static const char * MOD01[] = {
+	    "bx + si",
+	    "bx + di",
+	    "bp + si",
+	    "bp + di",
+	    "si",
+	    "di",
+	    "bp",
+	    "bx"
+	  };
+
+	  u8 data = buffer[2];
+	  sprintf(result, "mov %s, [%s + %d]", second_reg, MOD01[rm], data);
+	  *move = 3;
 	  return;
-	case 0b00000010:
-	  *move = 2;
+	}
+	case 0b00000010: {
+	  // Index these by r/m
+	  static const char * MOD10[] = {
+	    "bx + si",
+	    "bx + di",
+	    "bp + si",
+	    "bp + di",
+	    "si",
+	    "di",
+	    "bp",
+	    "bx"
+	  };
+
+	  u16 data = join(buffer[2], buffer[3]); //  TODO this the right order?
+	  sprintf(result, "mov %s, [%s + %d]", second_reg, MOD10[rm], data);
+	  *move = 4;
 	  return;
+	}
 	case 0b00000011:{
 	  const char* first_reg = w ? w1_reg_names[reg1] : w0_reg_names[reg1];
      
