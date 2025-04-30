@@ -98,8 +98,6 @@ Register decode_w1(u8 reg) {
     case 0x07:
       return DI;
     default:
-      exit(1);
-      return -1;
     }
 }
 
@@ -136,47 +134,87 @@ void decode(const u8* buffer, u16* move, char result[]) {
       static const u16 REG2_MASK = 0x0007; // 00000000,00000111
       static const u16 REG1_SHIFT = 3;
       static const u16 REG2_SHIFT = 0;
-      static const u16 W_MASK = 0x0100;   // 00000001,00000000
 
+      static const u8 RM_MASK = 0b00111000;
+      static const u8 RM_SHIFT = 3;
+      u8 rm = (buffer[1] & RM_MASK) >> RM_SHIFT;
+      
       u16 code = join(buffer[1], buffer[0]);
       
       u8 reg1 = (code & REG1_MASK) >> REG1_SHIFT;
       u8 reg2 = (code & REG2_MASK) >> REG2_SHIFT;
+
+      static const u16 W_MASK = 0x0100;   // 00000001,00000000
       u16 w = code & W_MASK;
 
-      Register first = w ? decode_w1(reg1) : decode_w0(reg1);
+
+      static const u8 MOD_MASK = 0b11000000;
+      static const u8 MOD_SHIFT = 6;
+      u8 mod = (buffer[1] & MOD_MASK) >> MOD_SHIFT;
+
       Register second = w ? decode_w1(reg2) : decode_w0(reg2);
+      
+      switch(mod)
+	{
+	case 0b00000000:{
+	  // Index these by r/m
+	  static const char * MOD00[] = {
+	    "[bx + si]",
+	    "[bx + di]",
+	    "[bp + si]",
+	    "[bp + di]",
+	    "si",
+	    "di",
+	    "DIRECT ADDRESS",
+	    "bx"
+	  };
+
+	  u8 rm = (buffer[1] & RM_MASK) >> RM_SHIFT;
+	  sprintf(result, "mov %s, %s", reg_names[second], MOD00[rm]);
+	  *move = 2;
+	  return;
+	}
+	case 0b00000001:
+	  *move = 2;
+	  return;
+	case 0b00000010:
+	  *move = 2;
+	  return;
+	case 0b00000011:{
+	  Register first = w ? decode_w1(reg1) : decode_w0(reg1);
      
-      sprintf(result, "mov %s, %s", reg_names[second], reg_names[first]);
+	  sprintf(result, "mov %s, %s", reg_names[second], reg_names[first]);
       
-      *move = 2;
-      return;
-    }
-  case MOV_IM_REG:
-    {
-      static const u8 REG_MASK = 0x03;
-      static const u8 W_MASK = 0b00001000;
-      u8 w = buffer[0] & W_MASK;
+	  *move = 2;
+	  return;
+	}
+	}
       
-      if(w) {
-	Register reg = decode_w1((buffer[0] & REG_MASK) >> 0);
-	u16 data = join(buffer[1], buffer[2]);
-	sprintf(result, "mov %s, %d", reg_names[reg], data);
-	*move = 3;
-	return;
+      case MOV_IM_REG: {
+	static const u8 REG_MASK = 0x03;
+	static const u8 W_MASK = 0b00001000;
+	u8 w = buffer[0] & W_MASK;
+      
+	if(w) {
+	  Register reg = decode_w1((buffer[0] & REG_MASK) >> 0);
+	  u16 data = join(buffer[1], buffer[2]);
+	  sprintf(result, "mov %s, %d", reg_names[reg], data);
+	  *move = 3;
+	  return;
+	}
+	else {
+	  Register reg = decode_w0((buffer[0] & REG_MASK) >> 0);
+	  u8 data = buffer[1];
+	  sprintf(result, "mov %s, %d", reg_names[reg], data);
+	  *move = 2;
+	  return;
+	}
       }
-      else {
-	Register reg = decode_w0((buffer[0] & REG_MASK) >> 0);
-	u8 data = buffer[1];
-	sprintf(result, "mov %s, %d", reg_names[reg], data);
-	*move = 2;
-	return;
-      }
-    }
-  default:
-    assert(false);
-    break;
-  }    
+	default:
+	  assert(false);
+	  break;
+    }    
+  }
 }
 
 void print_instruction(const Instruction* opcode) {  
