@@ -77,8 +77,8 @@ Operation decode_operation(const u8 *buffer) {
 void decode(const u8* buffer, u16* move, char result[]) {
   Operation operation = decode_operation(buffer);
 
-  static const u16 REG1_MASK = 0x0038; // 00000000,00111000
-  static const u16 REG1_SHIFT = 3;
+  static const u16 REG_MASK = 0x0038; // 00000000,00111000
+  static const u16 REG_SHIFT = 3;
   static const u8 D_MASK = 0b00000010;
   static const u8 RM_MASK = 0b00000111;
   static const u8 RM_SHIFT = 0;
@@ -86,11 +86,11 @@ void decode(const u8* buffer, u16* move, char result[]) {
   u8 rm = (buffer[1] & RM_MASK) >> RM_SHIFT;
   u16 code = join(buffer[1], buffer[0]);
       
-  u8 reg1 = (code & REG1_MASK) >> REG1_SHIFT;
+  u8 reg1 = (code & REG_MASK) >> REG_SHIFT;
   u8 reg2 = (code & RM_MASK) >> RM_SHIFT;
   
-  static const u16 W_MASK = 0x0100;   // 00000001,00000000
-  u16 w = code & W_MASK;
+  static const u16 W_MASK = 0x01;   // 00000001
+  u16 w = buffer[0] & W_MASK;
 
   const char* second_reg = w ? w1_reg_names[reg2] : w0_reg_names[reg2];
   
