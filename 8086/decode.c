@@ -6,10 +6,10 @@
 #include "bit_ops.c"
 
 typedef enum {
-  MOV_MEM_REG =        0x00, // memory address to register (MOD 00)
+  MOV_MEM_REG        = 0x00, // memory address to register (MOD 00)
   MOV_MEM_REG_DISP8  = 0x01, //                            (MOD 01)
   MOV_MEM_REG_DISP16 = 0x02, //                            (MOD 10)
-  MOV_REG_REG =        0x03, // register to register       (MOD 11)
+  MOV_REG_REG        = 0x03, // register to register       (MOD 11)
 
   MOV_IM_REG,         // immediate to register
 } Operation;
@@ -73,6 +73,28 @@ Operation decode_operation(const u8 *buffer) {
   return 0;
 }
 
+void write_move_assembly(char *out, const char* src, const char* dest, bool flip) {
+  flip
+    ? sprintf(out, "mov %s, %s", dest, src)
+    : sprintf(out, "mov %s, %s", src, dest);
+}
+
+void write_u8_disp_move_assembly(char *out, const char* src, u8 disp, const char* dest, bool flip) {
+  char src_with_disp[20];
+  sprintf(src_with_disp, "[%s + %d]", src, disp);
+  write_move_assembly(out, src_with_disp, dest, flip);
+}
+
+void write_u16_disp_move_assembly(char *out, const char* src, u16 disp, const char* dest, bool flip) {
+  char src_with_disp[20];
+  sprintf(src_with_disp, "[%s + %d]", src, disp);
+  write_move_assembly(out, src_with_disp, dest, flip);
+}
+
+void write_imm_move_assembly(char *out, u8 val, const char* dest) {
+  sprintf(out, "mov %s, %d", dest, val);
+}
+
 // Fills out the result field with the assembly
 void decode(const u8* buffer, u16* move, char result[]) {
   Operation operation = decode_operation(buffer);
@@ -88,6 +110,9 @@ void decode(const u8* buffer, u16* move, char result[]) {
       
   u8 reg1 = (code & REG_MASK) >> REG_SHIFT;
   u8 reg2 = (code & RM_MASK) >> RM_SHIFT;
+
+  // swap the destination and source?
+  u8 d = buffer[0] & D_MASK;
   
   static const u16 W_MASK = 0x01;   // 00000001
   u16 w = buffer[0] & W_MASK;
@@ -99,8 +124,9 @@ void decode(const u8* buffer, u16* move, char result[]) {
   case(MOV_REG_REG):
     {
       const char* first_reg = w ? w1_reg_names[reg1] : w0_reg_names[reg1];
-     
-      sprintf(result, "mov %s, %s", second_reg, first_reg);
+    
+      //sprintf(result, "mov %s, %s", second_reg, first_reg);
+      write_move_assembly(result, second_reg, first_reg, d);
       
       *move = 2;
       return;
@@ -120,7 +146,7 @@ void decode(const u8* buffer, u16* move, char result[]) {
 	"bx"
       };
 
-      sprintf(result, "mov %s, %s", second_reg, MOD00[rm]);
+      write_move_assembly(result, MOD00[rm], second_reg, d);
       *move = 2;
     }
     break;
@@ -139,8 +165,8 @@ void decode(const u8* buffer, u16* move, char result[]) {
 	"bx"
       };
 
-      u8 data = buffer[2];
-      sprintf(result, "mov %s, [%s + %d]", second_reg, MOD01[rm], data);
+      u8 data = buffer[2]; 
+      write_u8_disp_move_assembly(result, MOD01[rm], data, second_reg, d);
       *move = 3;
       return;
     }
@@ -160,8 +186,8 @@ void decode(const u8* buffer, u16* move, char result[]) {
 	"bx"
       };
 
-      u16 data = join(buffer[2], buffer[3]); //  TODO this the right order?
-      sprintf(result, "mov %s, [%s + %d]", second_reg, MOD10[rm], data);
+      u16 data = join(buffer[2], buffer[3]);
+      write_u16_disp_move_assembly(result, MOD10[rm], data, second_reg, d);
       *move = 4;
       return;
     }
@@ -175,14 +201,14 @@ void decode(const u8* buffer, u16* move, char result[]) {
     if(w) {
       const char* reg = w1_reg_names[(buffer[0] & REG_MASK) >> 0];
       u16 data = join(buffer[1], buffer[2]);
-      sprintf(result, "mov %s, %d", reg, data);
+      write_imm_move_assembly(result, data, reg);
       *move = 3;
       return;
     }
     else {
       const char* reg = w0_reg_names[(buffer[0] & REG_MASK) >> 0];
       u8 data = buffer[1];
-      sprintf(result, "mov %s, %d", reg, data);
+      write_imm_move_assembly(result, data, reg);
       *move = 2;
       return;
     }
