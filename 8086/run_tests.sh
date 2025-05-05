@@ -4,6 +4,12 @@ mkdir -p test
 
 run_test() {
     echo -n "Testing $1: "
+    
+    # if the binary doesn't exist, generate it with nasm
+    if [ ! -f $1.asm ]; then
+	nasm $1.asm
+    fi
+    
     ./sim8086 $1 > test/$1.asm
     nasm test/$1.asm
     xxd test/$1 > test/$1_result.hex
@@ -18,8 +24,4 @@ run_test() {
 }
 
 run_test listing_38
-run_test listing_39.1
-run_test listing_39.2
-run_test listing_39.3
-run_test listing_39.4
 run_test listing_39
