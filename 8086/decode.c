@@ -204,21 +204,22 @@ void decode(const u8* buffer, u16* move, char result[]) {
     break;
      
   case MOV_IM_REG: {
-    static const u8 REG_MASK = 0x03;
-    static const u8 W_MASK = 0b00001000;
+    static const u8 REG_MASK = 0b00000111;
+    u8 reg = buffer[0] & REG_MASK;
+    static const u8 W_MASK = 0b00001000;  
     u8 w = buffer[0] & W_MASK;
       
     if(w) {
-      const char* reg_name = get_reg_name((buffer[0] & REG_MASK) >> 0, w);
+      const char* reg_name = get_reg_name(reg, w);
       u16 data = join(buffer[1], buffer[2]);
       write_imm_u16_move_assembly(result, data, reg_name);
       *move = 3;
       return;
     }
     else {
-      const char* reg = get_reg_name((buffer[0] & REG_MASK) >> 0, w);
+      const char* reg_name = get_reg_name(reg, w);
       u8 data = buffer[1];
-      write_imm_u8_move_assembly(result, data, reg);
+      write_imm_u8_move_assembly(result, data, reg_name);
       *move = 2;
       return;
     }
