@@ -14,7 +14,7 @@ typedef enum {
   MOV_IM_REG,         // immediate to register
 } Operation;
 
-const char* w0_reg_names[] = {    
+const char* _w0_reg_names[] = {    
   "al",
   "cl",
   "dl",
@@ -25,7 +25,7 @@ const char* w0_reg_names[] = {
   "bh"
 };
 
-const char* w1_reg_names[] = {    
+const char* _w1_reg_names[] = {    
   "ax",
   "cx",
   "dx",
@@ -35,6 +35,10 @@ const char* w1_reg_names[] = {
   "si",
   "di"
 };
+
+const char* get_reg_name(u8 reg, u8 w) {
+  return w ? _w1_reg_names[reg] : _w0_reg_names[reg];
+}
 
 bool matches(u8 code, u8 pattern, u8 mask) {
   u8 masked_code = code & mask;
@@ -91,7 +95,11 @@ void write_u16_disp_move_assembly(char *out, const char* src, u16 disp, const ch
   write_move_assembly(out, src_with_disp, dest, flip);
 }
 
-void write_imm_move_assembly(char *out, u8 val, const char* dest) {
+void write_imm_u8_move_assembly(char *out, u8 val, const char* dest) {
+  sprintf(out, "mov %s, %d", dest, val);
+}
+
+void write_imm_u16_move_assembly(char *out, u16 val, const char* dest) {
   sprintf(out, "mov %s, %d", dest, val);
 }
 
@@ -99,34 +107,29 @@ void write_imm_move_assembly(char *out, u8 val, const char* dest) {
 void decode(const u8* buffer, u16* move, char result[]) {
   Operation operation = decode_operation(buffer);
 
-  static const u16 REG_MASK = 0x0038; // 00000000,00111000
-  static const u16 REG_SHIFT = 3;
+  static const u8 REG_MASK = 0b00111000; // 00111000
+  static const u8 REG_SHIFT = 3;
   static const u8 D_MASK = 0b00000010;
   static const u8 RM_MASK = 0b00000111;
   static const u8 RM_SHIFT = 0;
   
-  u8 rm = (buffer[1] & RM_MASK) >> RM_SHIFT;
-  u16 code = join(buffer[1], buffer[0]);
-      
-  u8 reg1 = (code & REG_MASK) >> REG_SHIFT;
-  u8 reg2 = (code & RM_MASK) >> RM_SHIFT;
+  u8 reg = (buffer[1] & REG_MASK) >> REG_SHIFT;
+  u8 rm_reg = (buffer[1] & RM_MASK) >> RM_SHIFT;
 
   // swap the destination and source?
   u8 d = buffer[0] & D_MASK;
   
-  static const u16 W_MASK = 0x01;   // 00000001
-  u16 w = buffer[0] & W_MASK;
-
-  const char* second_reg = w ? w1_reg_names[reg2] : w0_reg_names[reg2];
+  static const u8 W_MASK = 0x01;   // 00000001
+  u8 w = buffer[0] & W_MASK;
   
   switch (operation) {
 
   case(MOV_REG_REG):
     {
-      const char* first_reg = w ? w1_reg_names[reg1] : w0_reg_names[reg1];
-    
-      //sprintf(result, "mov %s, %s", second_reg, first_reg);
-      write_move_assembly(result, second_reg, first_reg, d);
+      const char* reg_name = get_reg_name(reg, w);
+      const char* rm_reg_name = get_reg_name(rm_reg, w);
+      //sprintf(result, "mov %s, %s", rm_reg_name, reg_name);
+      write_move_assembly(result, rm_reg_name, reg_name, d);
       
       *move = 2;
       return;
@@ -146,7 +149,9 @@ void decode(const u8* buffer, u16* move, char result[]) {
 	"bx"
       };
 
-      write_move_assembly(result, MOD00[rm], second_reg, d);
+      const char* this_reg = MOD00[rm_reg];
+      const char* that_reg = get_reg_name(reg, w);
+      write_move_assembly(result, this_reg, that_reg, d);
       *move = 2;
     }
     break;
@@ -165,8 +170,11 @@ void decode(const u8* buffer, u16* move, char result[]) {
 	"bx"
       };
 
-      u8 data = buffer[2]; 
-      write_u8_disp_move_assembly(result, MOD01[rm], data, second_reg, d);
+      u8 data = buffer[2];
+
+      const char* this_reg = MOD01[rm_reg];
+      const char* that_reg = get_reg_name(reg, w);
+      write_u8_disp_move_assembly(result, this_reg, data, that_reg, d);
       *move = 3;
       return;
     }
@@ -187,7 +195,9 @@ void decode(const u8* buffer, u16* move, char result[]) {
       };
 
       u16 data = join(buffer[2], buffer[3]);
-      write_u16_disp_move_assembly(result, MOD10[rm], data, second_reg, d);
+      const char* this_reg = MOD10[rm_reg];
+      const char* that_reg = get_reg_name(reg, w);
+      write_u16_disp_move_assembly(result, this_reg, data, that_reg, d);
       *move = 4;
       return;
     }
@@ -199,16 +209,16 @@ void decode(const u8* buffer, u16* move, char result[]) {
     u8 w = buffer[0] & W_MASK;
       
     if(w) {
-      const char* reg = w1_reg_names[(buffer[0] & REG_MASK) >> 0];
+      const char* reg_name = get_reg_name((buffer[0] & REG_MASK) >> 0, w);
       u16 data = join(buffer[1], buffer[2]);
-      write_imm_move_assembly(result, data, reg);
+      write_imm_u16_move_assembly(result, data, reg_name);
       *move = 3;
       return;
     }
     else {
-      const char* reg = w0_reg_names[(buffer[0] & REG_MASK) >> 0];
+      const char* reg = get_reg_name((buffer[0] & REG_MASK) >> 0, w);
       u8 data = buffer[1];
-      write_imm_move_assembly(result, data, reg);
+      write_imm_u8_move_assembly(result, data, reg);
       *move = 2;
       return;
     }
