@@ -107,7 +107,7 @@ void write_imm_u16_move_assembly(char *out, u16 val, const char* dest) {
 void decode(const u8* buffer, u16* move, char result[]) {
   Operation operation = decode_operation(buffer);
 
-  static const u8 REG_MASK = 0b00111000; // 00111000
+  static const u8 REG_MASK = 0b00111000;
   static const u8 REG_SHIFT = 3;
   static const u8 D_MASK = 0b00000010;
   static const u8 RM_MASK = 0b00000111;

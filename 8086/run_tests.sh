@@ -2,15 +2,23 @@
 make sim8086
 mkdir -p test
 
-echo -n "Testing listing 38: "
+run_test() {
+    echo -n "Testing $1: "
+    ./sim8086 $1 > test/$1.asm
+    nasm test/$1.asm
+    xxd test/$1 > test/$1_original.hex
+    xxd $1 > test/$1_after.hex
+    the_diff="$(diff test/$1_original.hex test/$1_after.hex)"
+    if [ $? -ne 0 ]; then
+	echo "FAILED"
+	echo $the_diff
+    else
+	echo "PASSED"
+    fi    
+}
 
-./sim8086 listing_38 > test/listing_38.asm
-nasm test/listing_38.asm
-xxd test/listing_38 > test/38_original.hex
-xxd listing_38 > test/38_after.hex
-diff test/38_original.hex test/38_after.hex > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-    echo "FAILED"
-else
-    echo "PASSED"
-fi
+run_test listing_38
+run_test listing_39.1
+run_test listing_39.2
+run_test listing_39.3
+run_test listing_39
