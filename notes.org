@@ -71,3 +71,7 @@ MOV AX, 12
 ** TODO
 - [ ] Make diff rest for previous homework
 - [ ] Print the 16 bit thing 
+* Opcode Patterns in 8086 Arithmetic]
+** HW
+- [ ] Decode add,sub,cmp
+- [ ] Decode jump
