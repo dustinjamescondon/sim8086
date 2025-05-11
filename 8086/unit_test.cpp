@@ -1,5 +1,5 @@
 #include <assert.h>
-#include "decode.c"
+#include "decode.cpp"
 
 void print_hex(u16 value) {
     printf("%hx", value);

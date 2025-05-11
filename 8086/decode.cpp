@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <assert.h>
-#include "bit_ops.c"
+#include "bit_ops.cpp"
 
 typedef enum {
   MOV_MEM_REG        = 0x00, // memory address to register (MOD 00)
@@ -74,7 +74,7 @@ Operation decode_operation(const u8 *buffer) {
     return MOV_IM_REG;
   }
   
-  return 0;
+  return (Operation)0;
 }
 
 void write_move_assembly(char *out, const char* src, const char* dest, bool flip) {

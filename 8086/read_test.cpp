@@ -1,4 +1,4 @@
-#include "decode.c"
+#include "decode.cpp"
 #include "assert.h"
 
 void print_hex(u16 value) {

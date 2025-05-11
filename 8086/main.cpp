@@ -1,4 +1,4 @@
-#include "decode.c"
+#include "decode.cpp"
 #include <execinfo.h>
 #include <signal.h>
 #include <stdlib.h>
