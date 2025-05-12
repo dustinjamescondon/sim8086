@@ -25,3 +25,4 @@ run_test() {
 
 run_test listing_38
 run_test listing_39
+run_test listing_41.1

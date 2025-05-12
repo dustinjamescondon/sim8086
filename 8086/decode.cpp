@@ -24,6 +24,9 @@ enum class OpAct {
 struct OpDesc {
   OpType type;
   OpAct  act;
+
+  union {
+  };
 };
 
 const char* decode_rm(u8 rm, u8 mod) {
@@ -160,7 +163,7 @@ OpDesc decode_operation(const u8 *buffer) {
   if(matches(buffer[0], im_add_sub_cmp_pattern, im_add_sub_cmp_mask)) {    
     static const u8 mask  = 0b00111000;
     static const u8 shift = 3;
-    
+    result.act = OpAct::IM_REG_MEM;
     u8 op = (buffer[1] & mask) >> shift;
     switch(op) {
       case add_pattern:
@@ -182,7 +185,6 @@ OpDesc decode_operation(const u8 *buffer) {
   static const u8 add_sub_cmp_pattern = 0b00000000;
   static const u8 add_sub_cmp_mask    = 0b11000000;
   if(matches(buffer[0], add_sub_cmp_pattern, add_sub_cmp_mask)) {
-    result.act = OpAct::IM_REG_MEM;
     static const u8 mask  = 0b00111000;
     static const u8 shift = 3;
     u8 op = (buffer[0] & mask) >> shift;
@@ -266,6 +268,10 @@ void decode(const u8* buffer, u16* move, char result[]) {
   static const u8 D_MASK = 0b00000010;
   static const u8 RM_MASK = 0b00000111;
   static const u8 RM_SHIFT = 0;
+
+  static const u8 mod_mask  = 0b11000000;
+  static const u8 mod_shift = 6;
+  u8 mod                    = (buffer[1] & mod_mask) >> mod_shift;
   
   u8 reg = (buffer[1] & REG_MASK) >> REG_SHIFT;
   u8 rm_reg = (buffer[1] & RM_MASK) >> RM_SHIFT;
@@ -342,15 +348,15 @@ void decode(const u8* buffer, u16* move, char result[]) {
     }
     case OpAct::IM_REG_MEM: {
       if(w) {
-	const char* reg_name = decode_reg(reg, w);
-	u16 data = join(buffer[1], buffer[2]);
+	const char* reg_name = decode_rm(rm_reg, mod);
+	u16 data = join(buffer[4], buffer[5]);
 	write_imm_u16_assembly(result, operation.type, data, reg_name);
 	*move = 6;
 	return;
       }
       else {
 	const char* reg_name = decode_reg(reg, w);
-	u8 data = buffer[1];
+	u8 data = buffer[4];
 	write_imm_u8_assembly(result, operation.type, data, reg_name);
 	*move = 5;
 	return;
