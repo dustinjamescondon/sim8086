@@ -17,14 +17,14 @@ enum class OpAct {
   MEM_REG_DISP8  , //                            (MOD 01)
   MEM_REG_DISP16 , //                            (MOD 10)
   REG_REG        , // register to register       (MOD 11)
-  IM_REG,          // immediate to register
+  IM_REG         , // immediate to register
+  IM_REG_MEM     , // immediate to register memory
 };
 
 struct OpDesc {
   OpType type;
   OpAct  act;
 };
-
 
 const char* _w0_reg_names[] = {    
   "al",
@@ -125,7 +125,7 @@ OpDesc decode_operation(const u8 *buffer) {
 	result.type = OpType::CMP;
 	break;
       default:
-	assert(false && "add/sub/cmp pattern not matched");
+	assert(false && "immediate add/sub/cmp pattern not matched");
     }
     return result;
   }
@@ -134,6 +134,7 @@ OpDesc decode_operation(const u8 *buffer) {
   static const u8 add_sub_cmp_pattern = 0b00000000;
   static const u8 add_sub_cmp_mask    = 0b11000000;
   if(matches(buffer[0], add_sub_cmp_pattern, add_sub_cmp_mask)) {
+    result.act = OpAct::IM_REG_MEM;
     static const u8 mask  = 0b00111000;
     static const u8 shift = 3;
     u8 op = (buffer[0] & mask) >> shift;
@@ -157,36 +158,61 @@ OpDesc decode_operation(const u8 *buffer) {
   return OpDesc {};
 }
 
-void write_move_assembly(char *out, const char* src, const char* dest, bool flip) {
+void write_assembly(char *out, OpType op, const char* src, const char* dest, bool flip) {
+  const char* op_str;
+  switch(op) {
+    case OpType::MOV: op_str = "mov"; break;
+    case OpType::ADD: op_str = "add"; break;
+    case OpType::SUB: op_str = "sub"; break;
+    case OpType::CMP: op_str = "cmp"; break;
+    default: assert(false && "op string table not filled out");
+  }
+  
   flip
-    ? sprintf(out, "mov %s, %s", dest, src)
-    : sprintf(out, "mov %s, %s", src, dest);
+    ? sprintf(out, "%s %s, %s", op_str, dest, src)
+    : sprintf(out, "%s %s, %s", op_str, src, dest);
 }
 
-void write_u8_disp_move_assembly(char *out, const char* src, u8 disp, const char* dest, bool flip) {
+void write_u8_disp_assembly(char *out, OpType op, const char* src, u8 disp, const char* dest, bool flip) {
   char src_with_disp[20];
   sprintf(src_with_disp, "[%s + %d]", src, disp);
-  write_move_assembly(out, src_with_disp, dest, flip);
+  write_assembly(out, op, src_with_disp, dest, flip);
 }
 
-void write_u16_disp_move_assembly(char *out, const char* src, u16 disp, const char* dest, bool flip) {
+void write_u16_disp_assembly(char *out, OpType op, const char* src, u16 disp, const char* dest, bool flip) {
   char src_with_disp[20];
   sprintf(src_with_disp, "[%s + %d]", src, disp);
-  write_move_assembly(out, src_with_disp, dest, flip);
+  write_assembly(out, op, src_with_disp, dest, flip);
 }
 
-void write_imm_u8_move_assembly(char *out, u8 val, const char* dest) {
-  sprintf(out, "mov %s, %d", dest, val);
+void write_imm_u8_assembly(char *out, OpType op, u8 val, const char* dest) {
+  const char* op_str;
+  switch(op) {
+    case OpType::MOV: op_str = "mov"; break;
+    case OpType::ADD: op_str = "add"; break;
+    case OpType::SUB: op_str = "sub"; break;
+    case OpType::CMP: op_str = "cmp"; break;
+    default: assert(false && "op string table not filled out");
+  }
+  sprintf(out, "%s %s, %d", op_str, dest, val);
 }
 
-void write_imm_u16_move_assembly(char *out, u16 val, const char* dest) {
-  sprintf(out, "mov %s, %d", dest, val);
+void write_imm_u16_assembly(char *out, OpType op, u16 val, const char* dest) {
+  const char* op_str;
+  switch(op) {
+    case OpType::MOV: op_str = "mov"; break;
+    case OpType::ADD: op_str = "add"; break;
+    case OpType::SUB: op_str = "sub"; break;
+    case OpType::CMP: op_str = "cmp"; break;
+    default: assert(false && "op string table not filled out");
+  }
+  sprintf(out, "%s %s, %d", op_str, dest, val);
 }
 
 // Fills out the result field with the assembly
 void decode(const u8* buffer, u16* move, char result[]) {
   OpDesc operation = decode_operation(buffer);
-
+  
   static const u8 REG_MASK = 0b00111000;
   static const u8 REG_SHIFT = 3;
   static const u8 D_MASK = 0b00000010;
@@ -199,7 +225,7 @@ void decode(const u8* buffer, u16* move, char result[]) {
   // swap the destination and source?
   u8 d = buffer[0] & D_MASK;
   
-  static const u8 W_MASK = 0x01;   // 00000001
+  static const u8 W_MASK = 0b00000001;
   u8 w = buffer[0] & W_MASK;
   
   switch (operation.act) {
@@ -209,7 +235,7 @@ void decode(const u8* buffer, u16* move, char result[]) {
 	const char* reg_name = get_reg_name(reg, w);
 	const char* rm_reg_name = get_reg_name(rm_reg, w);
 	//sprintf(result, "mov %s, %s", rm_reg_name, reg_name);
-	write_move_assembly(result, rm_reg_name, reg_name, d);
+	write_assembly(result, operation.type, rm_reg_name, reg_name, d);
       
 	*move = 2;
 	return;
@@ -231,7 +257,7 @@ void decode(const u8* buffer, u16* move, char result[]) {
 
 	const char* this_reg = MOD00[rm_reg];
 	const char* that_reg = get_reg_name(reg, w);
-	write_move_assembly(result, this_reg, that_reg, d);
+	write_assembly(result, operation.type, this_reg, that_reg, d);
 	*move = 2;
       }
       break;
@@ -254,7 +280,7 @@ void decode(const u8* buffer, u16* move, char result[]) {
 
 	const char* this_reg = MOD01[rm_reg];
 	const char* that_reg = get_reg_name(reg, w);
-	write_u8_disp_move_assembly(result, this_reg, data, that_reg, d);
+	write_u8_disp_assembly(result, operation.type, this_reg, data, that_reg, d);
 	*move = 3;
 	return;
       }
@@ -277,7 +303,7 @@ void decode(const u8* buffer, u16* move, char result[]) {
 	u16 data = join(buffer[2], buffer[3]);
 	const char* this_reg = MOD10[rm_reg];
 	const char* that_reg = get_reg_name(reg, w);
-	write_u16_disp_move_assembly(result, this_reg, data, that_reg, d);
+	write_u16_disp_assembly(result, operation.type, this_reg, data, that_reg, d);
 	*move = 4;
 	return;
       }
@@ -292,21 +318,37 @@ void decode(const u8* buffer, u16* move, char result[]) {
     if(w) {
       const char* reg_name = get_reg_name(reg, w);
       u16 data = join(buffer[1], buffer[2]);
-      write_imm_u16_move_assembly(result, data, reg_name);
+      write_imm_u16_assembly(result, operation.type, data, reg_name);
       *move = 3;
       return;
     }
     else {
       const char* reg_name = get_reg_name(reg, w);
       u8 data = buffer[1];
-      write_imm_u8_move_assembly(result, data, reg_name);
+      write_imm_u8_assembly(result, operation.type, data, reg_name);
       *move = 2;
       return;
     }
-  }
-  default:
-    assert(false);
-    break;
+    }
+    case OpAct::IM_REG_MEM: {
+      if(w) {
+	const char* reg_name = get_reg_name(reg, w);
+	u16 data = join(buffer[1], buffer[2]);
+	write_imm_u16_assembly(result, operation.type, data, reg_name);
+	*move = 6;
+	return;
+      }
+      else {
+	const char* reg_name = get_reg_name(reg, w);
+	u8 data = buffer[1];
+	write_imm_u8_assembly(result, operation.type, data, reg_name);
+	*move = 5;
+	return;
+      }
+    }
+    default:
+      assert(false);
+      break;
   }
 }
 
