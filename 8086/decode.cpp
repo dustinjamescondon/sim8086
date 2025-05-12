@@ -26,29 +26,77 @@ struct OpDesc {
   OpAct  act;
 };
 
-const char* _w0_reg_names[] = {    
-  "al",
-  "cl",
-  "dl",
-  "bl",
-  "ah",
-  "ch",
-  "dh",
-  "bh"
-};
+const char* decode_rm(u8 rm, u8 mod) {
+  // Index these by r/m
+  static const char * MOD00[] = {
+    "[bx + si]",
+    "[bx + di]",
+    "[bp + si]",
+    "[bp + di]",
+    "si",
+    "di",
+    "DIRECT ADDRESS",
+    "bx"
+  };
 
-const char* _w1_reg_names[] = {    
-  "ax",
-  "cx",
-  "dx",
-  "bx",
-  "sp",
-  "bp",
-  "si",
-  "di"
-};
+  // Index these by r/m
+  static const char * MOD01[] = {
+    "bx + si",
+    "bx + di",
+    "bp + si",
+    "bp + di",
+    "si",
+    "di",
+    "bp",
+    "bx"
+  };
+  // Index these by r/m
+  static const char * MOD10[] = {
+    "bx + si",
+    "bx + di",
+    "bp + si",
+    "bp + di",
+    "si",
+    "di",
+    "bp",
+    "bx"
+  };
 
-const char* get_reg_name(u8 reg, u8 w) {
+  switch(mod) {
+    case 0b00000000:
+      return MOD00[rm];
+    case 0b00000001:
+      return MOD01[rm];
+    case 0b00000010:
+      return MOD10[rm];
+    default:
+      assert(false && "decode rm failed");
+  }
+}
+
+const char* decode_reg(u8 reg, u8 w) {
+  static const char* _w0_reg_names[] = {    
+    "al",
+    "cl",
+    "dl",
+    "bl",
+    "ah",
+    "ch",
+    "dh",
+    "bh"
+  };
+
+  static const char* _w1_reg_names[] = {    
+    "ax",
+    "cx",
+    "dx",
+    "bx",
+    "sp",
+    "bp",
+    "si",
+    "di"
+  };
+
   return w ? _w1_reg_names[reg] : _w0_reg_names[reg];
 }
 
@@ -61,7 +109,7 @@ OpDesc decode_operation(const u8 *buffer) {
   OpDesc result {};
   result.type = OpType::MOV;
 
-  static const u8 im_to_reg = 0b10110000;
+  static const u8 im_to_reg      = 0b10110000;
   static const u8 im_to_reg_mask = 0b11110000;
   if(matches(buffer[0], im_to_reg, im_to_reg_mask)) {
     result.act = OpAct::IM_REG;
@@ -232,31 +280,17 @@ void decode(const u8* buffer, u16* move, char result[]) {
 
     case(OpAct::REG_REG):
       {
-	const char* reg_name = get_reg_name(reg, w);
-	const char* rm_reg_name = get_reg_name(rm_reg, w);
-	//sprintf(result, "mov %s, %s", rm_reg_name, reg_name);
+	const char* reg_name = decode_reg(reg, w);
+	const char* rm_reg_name = decode_reg(rm_reg, w);
 	write_assembly(result, operation.type, rm_reg_name, reg_name, d);
-      
 	*move = 2;
 	return;
       }
       break;
     case(OpAct::MEM_REG):
       {
-	// Index these by r/m
-	static const char * MOD00[] = {
-	  "[bx + si]",
-	  "[bx + di]",
-	  "[bp + si]",
-	  "[bp + di]",
-	  "si",
-	  "di",
-	  "DIRECT ADDRESS",
-	  "bx"
-	};
-
-	const char* this_reg = MOD00[rm_reg];
-	const char* that_reg = get_reg_name(reg, w);
+	const char* this_reg = decode_rm(rm_reg, 0x00);
+	const char* that_reg = decode_reg(reg, w);
 	write_assembly(result, operation.type, this_reg, that_reg, d);
 	*move = 2;
       }
@@ -264,22 +298,10 @@ void decode(const u8* buffer, u16* move, char result[]) {
     
     case(OpAct::MEM_REG_DISP8):
       {
-	// Index these by r/m
-	static const char * MOD01[] = {
-	  "bx + si",
-	  "bx + di",
-	  "bp + si",
-	  "bp + di",
-	  "si",
-	  "di",
-	  "bp",
-	  "bx"
-	};
-
 	u8 data = buffer[2];
 
-	const char* this_reg = MOD01[rm_reg];
-	const char* that_reg = get_reg_name(reg, w);
+	const char* this_reg = decode_rm(rm_reg, 0x01);
+	const char* that_reg = decode_reg(reg, w);
 	write_u8_disp_assembly(result, operation.type, this_reg, data, that_reg, d);
 	*move = 3;
 	return;
@@ -288,21 +310,9 @@ void decode(const u8* buffer, u16* move, char result[]) {
 
     case(OpAct::MEM_REG_DISP16):
       {
-	// Index these by r/m
-	static const char * MOD10[] = {
-	  "bx + si",
-	  "bx + di",
-	  "bp + si",
-	  "bp + di",
-	  "si",
-	  "di",
-	  "bp",
-	  "bx"
-	};
-
 	u16 data = join(buffer[2], buffer[3]);
-	const char* this_reg = MOD10[rm_reg];
-	const char* that_reg = get_reg_name(reg, w);
+	const char* this_reg = decode_rm(rm_reg, 0x02);
+	const char* that_reg = decode_reg(reg, w);
 	write_u16_disp_assembly(result, operation.type, this_reg, data, that_reg, d);
 	*move = 4;
 	return;
@@ -312,34 +322,34 @@ void decode(const u8* buffer, u16* move, char result[]) {
     case OpAct::IM_REG: {
       static const u8 REG_MASK = 0b00000111;
       u8 reg = buffer[0] & REG_MASK;
-    static const u8 W_MASK = 0b00001000;  
-    u8 w = buffer[0] & W_MASK;
+      static const u8 W_MASK = 0b00001000;  
+      u8 w = buffer[0] & W_MASK;
       
-    if(w) {
-      const char* reg_name = get_reg_name(reg, w);
-      u16 data = join(buffer[1], buffer[2]);
-      write_imm_u16_assembly(result, operation.type, data, reg_name);
-      *move = 3;
-      return;
-    }
-    else {
-      const char* reg_name = get_reg_name(reg, w);
-      u8 data = buffer[1];
-      write_imm_u8_assembly(result, operation.type, data, reg_name);
-      *move = 2;
-      return;
-    }
+      if(w) {
+	const char* reg_name = decode_reg(reg, w);
+	u16 data = join(buffer[1], buffer[2]);
+	write_imm_u16_assembly(result, operation.type, data, reg_name);
+	*move = 3;
+	return;
+      }
+      else {
+	const char* reg_name = decode_reg(reg, w);
+	u8 data = buffer[1];
+	write_imm_u8_assembly(result, operation.type, data, reg_name);
+	*move = 2;
+	return;
+      }
     }
     case OpAct::IM_REG_MEM: {
       if(w) {
-	const char* reg_name = get_reg_name(reg, w);
+	const char* reg_name = decode_reg(reg, w);
 	u16 data = join(buffer[1], buffer[2]);
 	write_imm_u16_assembly(result, operation.type, data, reg_name);
 	*move = 6;
 	return;
       }
       else {
-	const char* reg_name = get_reg_name(reg, w);
+	const char* reg_name = decode_reg(reg, w);
 	u8 data = buffer[1];
 	write_imm_u8_assembly(result, operation.type, data, reg_name);
 	*move = 5;
