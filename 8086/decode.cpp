@@ -7,6 +7,9 @@
 
 enum class OpType {
   MOV,
+  ADD,
+  SUB,
+  CMP,
 };
 
 enum class OpAct {
@@ -55,39 +58,98 @@ bool matches(u8 code, u8 pattern, u8 mask) {
 }
 
 OpDesc decode_operation(const u8 *buffer) {
-  static const u8 reg_to_reg = 0b10001000;
-  static const u8 reg_to_reg_mask = 0b11111100;
-  
-  static const u8 im_to_reg = 0b10110000;
-  static const u8 im_to_reg_mask = 0b11110000;
-
-  static const u8 MOD_MASK = 0b11000000;
-  static const u8 MOD_SHIFT = 6;
-
   OpDesc result {};
   result.type = OpType::MOV;
-  
-  if(matches(buffer[0], reg_to_reg, reg_to_reg_mask)) {
-    u8 mod = (buffer[1] & MOD_MASK) >> MOD_SHIFT;
 
+  static const u8 im_to_reg = 0b10110000;
+  static const u8 im_to_reg_mask = 0b11110000;
+  if(matches(buffer[0], im_to_reg, im_to_reg_mask)) {
+    result.act = OpAct::IM_REG;
+    return result;
+  }
+
+  //--------------------------------------------------
+  // here we assume that mod exists in the instruction
+  //..................................................
+  OpAct act;
+  {
+    static const u8 mod_mask = 0b11000000;
+    static const u8 mod_shift = 6;
+    u8 mod = (buffer[1] & mod_mask) >> mod_shift;
     switch(mod) {
       case 0x00:
-	result.act = OpAct::MEM_REG;
-	return result;
+	act = OpAct::MEM_REG;
+	break;
       case 0x01:
-	result.act = OpAct::MEM_REG_DISP8;
-	return result;
+	act = OpAct::MEM_REG_DISP8;
+	break;
       case 0x02:
-	result.act = OpAct::MEM_REG_DISP16;
-	return result;
+	act = OpAct::MEM_REG_DISP16;
+	break;
       case 0x04:
       default:
-	result.act = OpAct::REG_REG;
-	return result;
+	act = OpAct::REG_REG;
+	break;
     }
+  }
+  //--------------------------------------------------
+
+  static const u8 mov_pattern      = 0b10001000;
+  static const u8 mov_pattern_mask = 0b11111100;
+  if(matches(buffer[0], mov_pattern, mov_pattern_mask)) {
+    result.act = act;
+    return result;
+  }
+
+  static const u8 im_add_sub_cmp_pattern = 0b10000000;
+  static const u8 im_add_sub_cmp_mask    = 0b10000000;
+  
+  static const u8 add_pattern            = 0b00000000;
+  static const u8 sub_pattern            = 0b00000101;
+  static const u8 cmp_pattern            = 0b00000111;
+
+  // immediate to mem/reg
+  if(matches(buffer[0], im_add_sub_cmp_pattern, im_add_sub_cmp_mask)) {    
+    static const u8 mask  = 0b00111000;
+    static const u8 shift = 3;
     
-  } else if(matches(buffer[0], im_to_reg, im_to_reg_mask)) {
-    result.act = OpAct::IM_REG;
+    u8 op = (buffer[1] & mask) >> shift;
+    switch(op) {
+      case add_pattern:
+	result.type = OpType::ADD;
+	break;
+      case sub_pattern:
+	result.type = OpType::SUB;
+	break;
+      case cmp_pattern:
+	result.type = OpType::CMP;
+	break;
+      default:
+	assert(false && "add/sub/cmp pattern not matched");
+    }
+    return result;
+  }
+
+  // reg/mem to reg/mem
+  static const u8 add_sub_cmp_pattern = 0b00000000;
+  static const u8 add_sub_cmp_mask    = 0b11000000;
+  if(matches(buffer[0], add_sub_cmp_pattern, add_sub_cmp_mask)) {
+    static const u8 mask  = 0b00111000;
+    static const u8 shift = 3;
+    u8 op = (buffer[0] & mask) >> shift;
+    switch(op) {
+      case add_pattern:
+	result.type = OpType::ADD;
+	break;
+      case sub_pattern:
+	result.type = OpType::SUB;
+	break;
+      case cmp_pattern:
+	result.type = OpType::CMP;
+	break;
+      default:
+	assert(false && "add/sub/cmp pattern not matched");
+    }
     return result;
   }
 
