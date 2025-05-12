@@ -5,14 +5,13 @@
 #include <assert.h>
 #include "bit_ops.cpp"
 
-typedef enum {
-  MOV_MEM_REG        = 0x00, // memory address to register (MOD 00)
-  MOV_MEM_REG_DISP8  = 0x01, //                            (MOD 01)
-  MOV_MEM_REG_DISP16 = 0x02, //                            (MOD 10)
-  MOV_REG_REG        = 0x03, // register to register       (MOD 11)
-
-  MOV_IM_REG,         // immediate to register
-} Operation;
+enum class Operation {
+  MEM_REG        , // memory address to register (MOD 00)
+  MEM_REG_DISP8  , //                            (MOD 01)
+  MEM_REG_DISP16 , //                            (MOD 10)
+  REG_REG        , // register to register       (MOD 11)
+  IM_REG,          // immediate to register
+};
 
 const char* _w0_reg_names[] = {    
   "al",
@@ -59,19 +58,19 @@ Operation decode_operation(const u8 *buffer) {
     u8 mod = (buffer[1] & MOD_MASK) >> MOD_SHIFT;
 
     switch(mod) {
-    case 0x00:
-      return MOV_MEM_REG;
-    case 0x01:
-      return MOV_MEM_REG_DISP8;
-    case 0x02:
-      return MOV_MEM_REG_DISP16;
-    case 0x04:
-    default:
-      return MOV_REG_REG;
+      case 0x00:
+	return Operation::MEM_REG;
+      case 0x01:
+	return Operation::MEM_REG_DISP8;
+      case 0x02:
+	return Operation::MEM_REG_DISP16;
+      case 0x04:
+      default:
+	return Operation::REG_REG;
     }
     
   } else if(matches(buffer[0], im_to_reg, im_to_reg_mask)) {
-    return MOV_IM_REG;
+    return Operation::IM_REG;
   }
   
   return (Operation)0;
@@ -124,88 +123,88 @@ void decode(const u8* buffer, u16* move, char result[]) {
   
   switch (operation) {
 
-  case(MOV_REG_REG):
-    {
-      const char* reg_name = get_reg_name(reg, w);
-      const char* rm_reg_name = get_reg_name(rm_reg, w);
-      //sprintf(result, "mov %s, %s", rm_reg_name, reg_name);
-      write_move_assembly(result, rm_reg_name, reg_name, d);
+    case(Operation::REG_REG):
+      {
+	const char* reg_name = get_reg_name(reg, w);
+	const char* rm_reg_name = get_reg_name(rm_reg, w);
+	//sprintf(result, "mov %s, %s", rm_reg_name, reg_name);
+	write_move_assembly(result, rm_reg_name, reg_name, d);
       
-      *move = 2;
-      return;
-    }
-    break;
-  case(MOV_MEM_REG):
-    {
-      // Index these by r/m
-      static const char * MOD00[] = {
-	"[bx + si]",
-	"[bx + di]",
-	"[bp + si]",
-	"[bp + di]",
-	"si",
-	"di",
-	"DIRECT ADDRESS",
-	"bx"
-      };
+	*move = 2;
+	return;
+      }
+      break;
+    case(Operation::MEM_REG):
+      {
+	// Index these by r/m
+	static const char * MOD00[] = {
+	  "[bx + si]",
+	  "[bx + di]",
+	  "[bp + si]",
+	  "[bp + di]",
+	  "si",
+	  "di",
+	  "DIRECT ADDRESS",
+	  "bx"
+	};
 
-      const char* this_reg = MOD00[rm_reg];
-      const char* that_reg = get_reg_name(reg, w);
-      write_move_assembly(result, this_reg, that_reg, d);
-      *move = 2;
-    }
-    break;
+	const char* this_reg = MOD00[rm_reg];
+	const char* that_reg = get_reg_name(reg, w);
+	write_move_assembly(result, this_reg, that_reg, d);
+	*move = 2;
+      }
+      break;
     
-  case(MOV_MEM_REG_DISP8):
-    {
-      // Index these by r/m
-      static const char * MOD01[] = {
-	"bx + si",
-	"bx + di",
-	"bp + si",
-	"bp + di",
-	"si",
-	"di",
-	"bp",
-	"bx"
-      };
+    case(Operation::MEM_REG_DISP8):
+      {
+	// Index these by r/m
+	static const char * MOD01[] = {
+	  "bx + si",
+	  "bx + di",
+	  "bp + si",
+	  "bp + di",
+	  "si",
+	  "di",
+	  "bp",
+	  "bx"
+	};
 
-      u8 data = buffer[2];
+	u8 data = buffer[2];
 
-      const char* this_reg = MOD01[rm_reg];
-      const char* that_reg = get_reg_name(reg, w);
-      write_u8_disp_move_assembly(result, this_reg, data, that_reg, d);
-      *move = 3;
-      return;
-    }
-    break;
+	const char* this_reg = MOD01[rm_reg];
+	const char* that_reg = get_reg_name(reg, w);
+	write_u8_disp_move_assembly(result, this_reg, data, that_reg, d);
+	*move = 3;
+	return;
+      }
+      break;
 
-  case(MOV_MEM_REG_DISP16):
-    {
-      // Index these by r/m
-      static const char * MOD10[] = {
-	"bx + si",
-	"bx + di",
-	"bp + si",
-	"bp + di",
-	"si",
-	"di",
-	"bp",
-	"bx"
-      };
+    case(Operation::MEM_REG_DISP16):
+      {
+	// Index these by r/m
+	static const char * MOD10[] = {
+	  "bx + si",
+	  "bx + di",
+	  "bp + si",
+	  "bp + di",
+	  "si",
+	  "di",
+	  "bp",
+	  "bx"
+	};
 
-      u16 data = join(buffer[2], buffer[3]);
-      const char* this_reg = MOD10[rm_reg];
-      const char* that_reg = get_reg_name(reg, w);
-      write_u16_disp_move_assembly(result, this_reg, data, that_reg, d);
-      *move = 4;
-      return;
-    }
-    break;
+	u16 data = join(buffer[2], buffer[3]);
+	const char* this_reg = MOD10[rm_reg];
+	const char* that_reg = get_reg_name(reg, w);
+	write_u16_disp_move_assembly(result, this_reg, data, that_reg, d);
+	*move = 4;
+	return;
+      }
+      break;
      
-  case MOV_IM_REG: {
-    static const u8 REG_MASK = 0b00000111;
-    u8 reg = buffer[0] & REG_MASK;
+    case Operation::IM_REG: {
+      static const u8 REG_MASK = 0b00000111;
+      u8 reg = buffer[0] & REG_MASK;
     static const u8 W_MASK = 0b00001000;  
     u8 w = buffer[0] & W_MASK;
       
