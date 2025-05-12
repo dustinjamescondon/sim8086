@@ -5,13 +5,23 @@
 #include <assert.h>
 #include "bit_ops.cpp"
 
-enum class Operation {
+enum class OpType {
+  MOV,
+};
+
+enum class OpAct {
   MEM_REG        , // memory address to register (MOD 00)
   MEM_REG_DISP8  , //                            (MOD 01)
   MEM_REG_DISP16 , //                            (MOD 10)
   REG_REG        , // register to register       (MOD 11)
   IM_REG,          // immediate to register
 };
+
+struct OpDesc {
+  OpType type;
+  OpAct  act;
+};
+
 
 const char* _w0_reg_names[] = {    
   "al",
@@ -44,7 +54,7 @@ bool matches(u8 code, u8 pattern, u8 mask) {
   return masked_code == pattern;
 }
 
-Operation decode_operation(const u8 *buffer) {
+OpDesc decode_operation(const u8 *buffer) {
   static const u8 reg_to_reg = 0b10001000;
   static const u8 reg_to_reg_mask = 0b11111100;
   
@@ -54,26 +64,35 @@ Operation decode_operation(const u8 *buffer) {
   static const u8 MOD_MASK = 0b11000000;
   static const u8 MOD_SHIFT = 6;
 
+  OpDesc result {};
+  result.type = OpType::MOV;
+  
   if(matches(buffer[0], reg_to_reg, reg_to_reg_mask)) {
     u8 mod = (buffer[1] & MOD_MASK) >> MOD_SHIFT;
 
     switch(mod) {
       case 0x00:
-	return Operation::MEM_REG;
+	result.act = OpAct::MEM_REG;
+	return result;
       case 0x01:
-	return Operation::MEM_REG_DISP8;
+	result.act = OpAct::MEM_REG_DISP8;
+	return result;
       case 0x02:
-	return Operation::MEM_REG_DISP16;
+	result.act = OpAct::MEM_REG_DISP16;
+	return result;
       case 0x04:
       default:
-	return Operation::REG_REG;
+	result.act = OpAct::REG_REG;
+	return result;
     }
     
   } else if(matches(buffer[0], im_to_reg, im_to_reg_mask)) {
-    return Operation::IM_REG;
+    result.act = OpAct::IM_REG;
+    return result;
   }
-  
-  return (Operation)0;
+
+  assert(false && "missing decode");
+  return OpDesc {};
 }
 
 void write_move_assembly(char *out, const char* src, const char* dest, bool flip) {
@@ -104,7 +123,7 @@ void write_imm_u16_move_assembly(char *out, u16 val, const char* dest) {
 
 // Fills out the result field with the assembly
 void decode(const u8* buffer, u16* move, char result[]) {
-  Operation operation = decode_operation(buffer);
+  OpDesc operation = decode_operation(buffer);
 
   static const u8 REG_MASK = 0b00111000;
   static const u8 REG_SHIFT = 3;
@@ -121,9 +140,9 @@ void decode(const u8* buffer, u16* move, char result[]) {
   static const u8 W_MASK = 0x01;   // 00000001
   u8 w = buffer[0] & W_MASK;
   
-  switch (operation) {
+  switch (operation.act) {
 
-    case(Operation::REG_REG):
+    case(OpAct::REG_REG):
       {
 	const char* reg_name = get_reg_name(reg, w);
 	const char* rm_reg_name = get_reg_name(rm_reg, w);
@@ -134,7 +153,7 @@ void decode(const u8* buffer, u16* move, char result[]) {
 	return;
       }
       break;
-    case(Operation::MEM_REG):
+    case(OpAct::MEM_REG):
       {
 	// Index these by r/m
 	static const char * MOD00[] = {
@@ -155,7 +174,7 @@ void decode(const u8* buffer, u16* move, char result[]) {
       }
       break;
     
-    case(Operation::MEM_REG_DISP8):
+    case(OpAct::MEM_REG_DISP8):
       {
 	// Index these by r/m
 	static const char * MOD01[] = {
@@ -179,7 +198,7 @@ void decode(const u8* buffer, u16* move, char result[]) {
       }
       break;
 
-    case(Operation::MEM_REG_DISP16):
+    case(OpAct::MEM_REG_DISP16):
       {
 	// Index these by r/m
 	static const char * MOD10[] = {
@@ -202,7 +221,7 @@ void decode(const u8* buffer, u16* move, char result[]) {
       }
       break;
      
-    case Operation::IM_REG: {
+    case OpAct::IM_REG: {
       static const u8 REG_MASK = 0b00000111;
       u8 reg = buffer[0] & REG_MASK;
     static const u8 W_MASK = 0b00001000;  
