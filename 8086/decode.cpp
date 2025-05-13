@@ -26,6 +26,7 @@ struct OpDesc {
   OpAct  act;
 
   union {
+    //OpAct act,
   };
 };
 
@@ -110,11 +111,11 @@ bool matches(u8 code, u8 pattern, u8 mask) {
 
 OpDesc decode_operation(const u8 *buffer) {
   OpDesc result {};
-  result.type = OpType::MOV;
 
-  static const u8 im_to_reg      = 0b10110000;
-  static const u8 im_to_reg_mask = 0b11110000;
-  if(matches(buffer[0], im_to_reg, im_to_reg_mask)) {
+  static const u8 mov_im_to_reg      = 0b10110000;
+  static const u8 mov_im_to_reg_mask = 0b11110000;
+  if(matches(buffer[0], mov_im_to_reg, mov_im_to_reg_mask)) {
+    result.type = OpType::MOV;
     result.act = OpAct::IM_REG;
     return result;
   }
@@ -148,7 +149,8 @@ OpDesc decode_operation(const u8 *buffer) {
   static const u8 mov_pattern      = 0b10001000;
   static const u8 mov_pattern_mask = 0b11111100;
   if(matches(buffer[0], mov_pattern, mov_pattern_mask)) {
-    result.act = act;
+    result.type = OpType::MOV;
+    result.act  = act;
     return result;
   }
 
@@ -281,6 +283,9 @@ void decode(const u8* buffer, u16* move, char result[]) {
   
   static const u8 W_MASK = 0b00000001;
   u8 w = buffer[0] & W_MASK;
+
+  static const u8 S_MASK = 0b00000010;
+  u8 s = buffer[0] & S_MASK;
   
   switch (operation.act) {
 
@@ -349,7 +354,10 @@ void decode(const u8* buffer, u16* move, char result[]) {
     case OpAct::IM_REG_MEM: {
       if(w) {
 	const char* reg_name = decode_rm(rm_reg, mod);
-	u16 data = join(buffer[4], buffer[5]);
+	u16 data = s
+	  ? join(buffer[2], 0)
+	  : join(buffer[2], buffer[3]);
+	
 	write_imm_u16_assembly(result, operation.type, data, reg_name);
 	*move = 6;
 	return;
