@@ -27,6 +27,11 @@ enum class SourceType {
   MEM
 };
 
+struct SrcDest {
+  char src[50];
+  char dest[50];
+};
+
 struct OpDesc {
   OpType type;
   char   src[50];
@@ -153,6 +158,111 @@ bool matches(u8 code, u8 pattern, u8 mask) {
   return masked_code == pattern;
 }
 
+// See first row of MOV
+SrcDest decode_src_dest_reg_mem(const u8* buffer, u8* move) {
+    // NOTE: the rest of this is common to many other operations
+    static const u8 w_mask  = 0b00000001;
+    u8 w = buffer[0] & w_mask;
+    static const u8 d_mask  = 0b00000010;
+    u8 d = buffer[0] & d_mask;
+    u8 mod = (buffer[1] & 0b11000000) >> 6;
+    ModType mod_type = decode_mod(buffer[1]);
+
+    SrcDest result{};
+
+    u8 rm_mask  = 0b00000111;
+    u8 rm       = (buffer[1] & rm_mask);
+    u8 reg_mask = 0b00111000;
+    u8 reg      = (buffer[1] & reg_mask) >> 3;
+    const char* rm_part = decode_rm(rm, mod_type, (bool)w);
+    
+    switch(mod_type) {
+      case ModType::MEM_MODE:{
+	*move = 2;
+	sprintf(result.dest, "%s", rm_part);
+      }
+	break;
+      case ModType::MEM_MODE_DISP8:{
+	u8 disp = buffer[2];
+	*move = 3;
+	sprintf(result.dest, "[%s + %d]", rm_part, disp);
+      }
+	break;
+      case ModType::MEM_MODE_DISP16: {
+	u16 disp = join(buffer[2], buffer[3]);	
+	*move = 4;
+	sprintf(result.dest, "[%s + %d]", rm_part, disp);
+      }
+	break;
+      case ModType::REG_MODE: {
+	*move = 2;
+	sprintf(result.dest, "%s", rm_part);
+      }
+	break;
+    }
+   
+    strcpy(result.src, decode_reg(reg, (bool)w));
+ 
+    if(d) {
+      std::swap(result.dest, result.src);
+    }
+
+    return result;
+}
+
+// See second row of ADD
+SrcDest decode_src_dest_im_to_reg_mem(const u8* buffer, u8* move) {
+    // NOTE: the rest of this is common to many other operations
+    static const u8 w_mask  = 0b00000001;
+    u8 w = buffer[0] & w_mask;
+    static const u8 s_mask  = 0b00000010;
+    u8 s = buffer[0] & s_mask;
+    
+    u8 mod = (buffer[1] & 0b11000000) >> 6;
+    ModType mod_type = decode_mod(buffer[1]);
+
+    SrcDest result{};
+
+    u8 rm_mask  = 0b00000111;
+    u8 rm       = (buffer[1] & rm_mask);
+    u8 reg_mask = 0b00111000;
+    u8 reg      = (buffer[1] & reg_mask) >> 3;
+    const char* rm_part = decode_rm(rm, mod_type, (bool)w);
+    
+    switch(mod_type) {
+      case ModType::MEM_MODE:{
+	u16 data = w
+	  ? join(buffer[2], buffer[3])
+	  : join(buffer[2], 0);
+	
+	*move = 2;
+	sprintf(result.dest, "%s", rm_part);
+      }
+	break;
+      case ModType::MEM_MODE_DISP8:{
+	u8 disp = buffer[2];
+	*move = 3;
+	sprintf(result.dest, "[%s + %d]", rm_part, disp);
+      }
+	break;
+      case ModType::MEM_MODE_DISP16: {
+	u16 disp = join(buffer[2], buffer[3]);	
+	*move = 4;
+	sprintf(result.dest, "[%s + %d]", rm_part, disp);
+      }
+	break;
+      case ModType::REG_MODE: {
+	*move = 2;
+	sprintf(result.dest, "%s", rm_part);
+      }
+	break;
+    }
+   
+    strcpy(result.src, decode_reg(reg, (bool)w));
+
+    return result;
+}
+
 OpDesc decode_operation(const u8 *buffer) {
   static const u8 mov_im_to_reg      = 0b10110000;
   static const u8 mov_im_to_reg_mask = 0b11110000;
@@ -178,54 +288,12 @@ OpDesc decode_operation(const u8 *buffer) {
   static const u8 mov_pattern      = 0b10001000;
   static const u8 mov_pattern_mask = 0b11111100;
   if(matches(buffer[0], mov_pattern, mov_pattern_mask)) {
-    // NOTE: the rest of this is common to many other operations
-    static const u8 w_mask  = 0b00000001;
-    u8 w = buffer[0] & w_mask;
-    static const u8 d_mask  = 0b00000010;
-    u8 d = buffer[0] & d_mask;
-    u8 mod = (buffer[1] & 0b11000000) >> 6;
-    ModType mod_type = decode_mod(buffer[1]);
-
     OpDesc result{};
-    result.type = OpType::MOV;
-
-    u8 rm_mask  = 0b00000111;
-    u8 rm       = (buffer[1] & rm_mask);
-    u8 reg_mask = 0b00111000;
-    u8 reg      = (buffer[1] & reg_mask) >> 3;
-    const char* rm_part = decode_rm(rm, mod_type, (bool)w);
     
-    switch(mod_type) {
-      case ModType::MEM_MODE:{
-	result.move = 2;
-	sprintf(result.dest, "%s", rm_part);
-      }
-	break;
-      case ModType::MEM_MODE_DISP8:{
-	u8 disp = buffer[2];
-	result.move = 3;
-	sprintf(result.dest, "[%s + %d]", rm_part, disp);
-      }
-	break;
-      case ModType::MEM_MODE_DISP16: {
-	u16 disp = join(buffer[2], buffer[3]);	
-	result.move = 4;
-	sprintf(result.dest, "[%s + %d]", rm_part, disp);
-      }
-	break;
-      case ModType::REG_MODE: {
-	result.move = 2;
-	sprintf(result.dest, "%s", rm_part);
-      }
-	break;
-    }
-   
-    strcpy(result.src, decode_reg(reg, (bool)w));
- 
-    if(d) {
-      std::swap(result.dest, result.src);
-    }
-   
+    SrcDest src_dest = decode_src_dest_reg_mem(buffer, &result.move);
+    strcpy(result.src,  src_dest.src);
+    strcpy(result.dest, src_dest.dest);
+    
     return result;
   }
 
@@ -255,6 +323,10 @@ OpDesc decode_operation(const u8 *buffer) {
       default:
 	assert(false && "immediate add/sub/cmp pattern not matched");
     }
+
+    SrcDest src_dest = decode_src_dest_im_to_reg_mem(buffer, &result.move);
+    strcpy(result.src, src_dest.src);
+    strcpy(result.dest, src_dest.dest);
     return result;
   }
 
@@ -280,6 +352,10 @@ OpDesc decode_operation(const u8 *buffer) {
       default:
 	assert(false && "add/sub/cmp pattern not matched");
     }
+
+    SrcDest src_dest = decode_src_dest_reg_mem(buffer, &result.move);
+    strcpy(result.src, src_dest.src);
+    strcpy(result.dest, src_dest.dest);
     return result;
   }
 
