@@ -26,3 +26,5 @@ run_test() {
 run_test listing_38
 run_test listing_39
 run_test listing_41.1
+run_test listing_41.3
+run_test listing_41.nojump

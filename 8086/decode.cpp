@@ -72,10 +72,10 @@ const char* decode_rm(u8 rm, ModType mod, bool wide) {
     "[bx + di]",
     "[bp + si]",
     "[bp + di]",
-    "si",
-    "di",
+    "[si]",
+    "[di]",
     "DIRECT ADDRESS",
-    "bx"
+    "[bx]"
   };
 
   // Index these by r/m
@@ -165,7 +165,6 @@ SrcDest decode_src_dest_reg_mem(const u8* buffer, u8* move) {
     u8 w = buffer[0] & w_mask;
     static const u8 d_mask  = 0b00000010;
     u8 d = buffer[0] & d_mask;
-    u8 mod = (buffer[1] & 0b11000000) >> 6;
     ModType mod_type = decode_mod(buffer[1]);
 
     SrcDest result{};
@@ -210,6 +209,21 @@ SrcDest decode_src_dest_reg_mem(const u8* buffer, u8* move) {
     return result;
 }
 
+u16 extract_data(const u8* data, bool w, bool s, u8 *data_size) {
+  if(!w) {
+    *data_size = 1;
+    return join(data[0], 0);
+  }
+
+  if(s) {
+    *data_size = 1;
+    return join(data[0], 0);
+  } else {
+    *data_size = 2;
+    return join(data[0], data[1]);
+  }
+}
+
 // See second row of ADD
 SrcDest decode_src_dest_im_to_reg_mem(const u8* buffer, u8* move) {
     // NOTE: the rest of this is common to many other operations
@@ -218,58 +232,70 @@ SrcDest decode_src_dest_im_to_reg_mem(const u8* buffer, u8* move) {
     static const u8 s_mask  = 0b00000010;
     u8 s = buffer[0] & s_mask;
     
-    u8 mod = (buffer[1] & 0b11000000) >> 6;
     ModType mod_type = decode_mod(buffer[1]);
 
     SrcDest result{};
 
     u8 rm_mask  = 0b00000111;
     u8 rm       = (buffer[1] & rm_mask);
-    u8 reg_mask = 0b00111000;
-    u8 reg      = (buffer[1] & reg_mask) >> 3;
     const char* rm_part = decode_rm(rm, mod_type, (bool)w);
+
+    u16 data = 0;
     
     switch(mod_type) {
       case ModType::MEM_MODE:{
-	u16 data = w
-	  ? join(buffer[2], buffer[3])
-	  : join(buffer[2], 0);
-	
-	*move = 2;
-	sprintf(result.dest, "%s", rm_part);
+	u8 data_size = 0;
+	const u8* data_start = buffer + 2;
+	data = extract_data(data_start, w, s, &data_size);
+	*move =
+	  2            // the instruction
+	  + data_size; // the data
+	const char* size = w ? "word" : "byte";
+	sprintf(result.dest, "%s %s", size, rm_part);
       }
 	break;
       case ModType::MEM_MODE_DISP8:{
 	u8 disp = buffer[2];
-	u16 data = w
-	  ? join(buffer[2], buffer[3])
-	  : join(buffer[2], 0);
-	
-	*move = 3;
-	sprintf(result.dest, "[%s + %d]", rm_part, disp);
+	u8 data_size = 0;
+	const u8* data_start = buffer + 3;
+	data = extract_data(data_start, w, s, &data_size);
+       
+	*move =
+	  2            // the instruction
+	  + 1          // the displacement
+	  + data_size; // the data
+
+	const char* size = w ? "word" : "byte";
+	sprintf(result.dest, "%s [%s + %d]", size, rm_part, disp);
       }
 	break;
       case ModType::MEM_MODE_DISP16: {
 	u16 disp = join(buffer[2], buffer[3]);
-	u16 data = w
-	  ? join(buffer[2], buffer[3])
-	  : join(buffer[2], 0);
-	*move = 4;
-	sprintf(result.dest, "[%s + %d]", rm_part, disp);
+	u8 data_size = 0;
+	const u8* data_start = buffer + 4;
+	data = extract_data(data_start, w, s, &data_size);
+	
+	*move =
+	  2            // the instruction
+	  + 2          // the displacement
+	  + data_size; // the data
+	const char* size = w ? "word" : "byte";
+	sprintf(result.dest, "%s [%s + %d]", size, rm_part, disp);
       }
 	break;
       case ModType::REG_MODE: {
-	u16 data = w
-	  ? join(buffer[2], buffer[3])
-	  : join(buffer[2], 0);
-	*move = 2;
+	u8 data_size = 0;
+	const u8* data_start = buffer + 2;
+	data = extract_data(data_start, w, s, &data_size);
+	*move =
+	  2            // the instruction
+	  + data_size; // the data
 	sprintf(result.dest, "%s", rm_part);
       }
 	break;
     }
-   
-    strcpy(result.src, decode_reg(reg, (bool)w));
-
+    sprintf(result.src, "%d", data);
+    
     return result;
 }
 
