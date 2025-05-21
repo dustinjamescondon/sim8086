@@ -241,17 +241,27 @@ SrcDest decode_src_dest_im_to_reg_mem(const u8* buffer, u8* move) {
 	break;
       case ModType::MEM_MODE_DISP8:{
 	u8 disp = buffer[2];
+	u16 data = w
+	  ? join(buffer[2], buffer[3])
+	  : join(buffer[2], 0);
+	
 	*move = 3;
 	sprintf(result.dest, "[%s + %d]", rm_part, disp);
       }
 	break;
       case ModType::MEM_MODE_DISP16: {
-	u16 disp = join(buffer[2], buffer[3]);	
+	u16 disp = join(buffer[2], buffer[3]);
+	u16 data = w
+	  ? join(buffer[2], buffer[3])
+	  : join(buffer[2], 0);
 	*move = 4;
 	sprintf(result.dest, "[%s + %d]", rm_part, disp);
       }
 	break;
       case ModType::REG_MODE: {
+	u16 data = w
+	  ? join(buffer[2], buffer[3])
+	  : join(buffer[2], 0);
 	*move = 2;
 	sprintf(result.dest, "%s", rm_part);
       }
