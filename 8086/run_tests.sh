@@ -6,20 +6,24 @@ run_test() {
     echo -n "Testing $1: "
     
     # if the binary doesn't exist, generate it with nasm
-    if [ ! -f $1.asm ]; then
-	nasm $1.asm
+    if [ ! -f listings/$1 ]; then
+    	nasm listings/$1.asm -o listings/$1
     fi
     
-    ./sim8086 $1 > test/$1.asm
-    nasm test/$1.asm
+    ./sim8086 listings/$1 > "test/$1.asm"
+    if [ $? -ne 0 ]; then
+    	echo "FAILED (couldn't decode)"
+	exit 1
+    fi    
+    
+    nasm "test/$1.asm" -o "test/$1"
     xxd test/$1 > test/$1_result.hex
-    xxd $1 > test/$1_original.hex
+    xxd listings/$1 > test/$1_original.hex
     the_diff="$(diff test/$1_original.hex test/$1_result.hex)"
     if [ $? -ne 0 ]; then
-	echo "FAILED"
-	echo $the_diff
+    	echo "FAILED"
     else
-	echo "PASSED"
+    	echo "PASSED"
     fi    
 }
 
