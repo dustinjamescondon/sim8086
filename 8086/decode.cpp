@@ -224,6 +224,20 @@ u16 extract_data(const u8* data, bool w, bool s, u8 *data_size) {
   }
 }
 
+SrcDest decode_src_dest_im_to_acc(const u8* buffer, u8* move) {
+    static const u8 w_mask  = 0b00000001;
+    u8 w = buffer[0] & w_mask;
+
+    SrcDest result{};
+    u16 data = w ? join(buffer[1], buffer[2]) : join(buffer[1], 0);
+    sprintf(result.src, "%d", data);
+    sprintf(result.dest, "%s", w ? "ax" : "al");
+
+    *move = w ? 3 : 2;
+    
+    return result;
+}
+
 // See second row of ADD
 SrcDest decode_src_dest_im_to_reg_mem(const u8* buffer, u8* move) {
     // NOTE: the rest of this is common to many other operations
@@ -368,7 +382,7 @@ OpDesc decode_operation(const u8 *buffer) {
 
   // reg/mem to reg/mem
   static const u8 add_sub_cmp_pattern = 0b00000000;
-  static const u8 add_sub_cmp_mask    = 0b11000000;
+  static const u8 add_sub_cmp_mask    = 0b11000100;
   if(matches(buffer[0], add_sub_cmp_pattern, add_sub_cmp_mask)) {
     static const u8 mask  = 0b00111000;
     static const u8 shift = 3;
@@ -390,6 +404,34 @@ OpDesc decode_operation(const u8 *buffer) {
     }
 
     SrcDest src_dest = decode_src_dest_reg_mem(buffer, &result.move);
+    strcpy(result.src, src_dest.src);
+    strcpy(result.dest, src_dest.dest);
+    return result;
+  }
+
+  static const u8 im_to_accum_add_sub_cmp_pattern = 0b00000100;
+  static const u8 im_to_accum_add_sub_cmp_mask    = 0b00000100;
+  if(matches(buffer[0], im_to_accum_add_sub_cmp_pattern, im_to_accum_add_sub_cmp_mask)) {
+    static const u8 mask  = 0b00111000;
+    static const u8 shift = 3;
+
+    OpDesc result {};
+    u8 op = (buffer[0] & mask) >> shift;
+    switch(op) {
+      case add_pattern:
+	result.type = OpType::ADD;
+	break;
+      case sub_pattern:
+	result.type = OpType::SUB;
+	break;
+      case cmp_pattern:
+	result.type = OpType::CMP;
+	break;
+      default:
+	assert(false && "add/sub/cmp pattern not matched");
+    }
+    
+    SrcDest src_dest = decode_src_dest_im_to_acc(buffer, &result.move);
     strcpy(result.src, src_dest.src);
     strcpy(result.dest, src_dest.dest);
     return result;
