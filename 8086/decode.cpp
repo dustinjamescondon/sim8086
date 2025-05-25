@@ -7,7 +7,7 @@
 #include "bit_ops.cpp"
 #include <functional>
 
-#define SIZE(ARR) sizeof(ARR) / sizeof(ARR[0])
+#define COUNT(ARR) sizeof(ARR) / sizeof(ARR[0])
 
 enum class OpType {
   MOV = 0,
@@ -459,7 +459,7 @@ OpDesc decode_operation(const u8 *buffer) {
     DecodeRow("11100011", [](const u8* buffer){ return decode_conditional_jmp(OpType::JCXZ, buffer);}),
   };
 
-  for(size_t i = 0; i < SIZE(rows); i++) {
+  for(size_t i = 0; i < COUNT(rows); i++) {
     if(rows[i].matches(buffer[0])) {
       return rows[i].decode_fn(buffer);
     }
