@@ -188,47 +188,6 @@ ModType decode_mod(u8 buffer) {
   assert(false && "Couldn't match mod");
 }
 
-bool matches(const char *bit_pattern, u8 byte) {
-
-  size_t len = strlen(bit_pattern);
-  assert(len == 8);
-  
-  for(int i = 0; i < 8; i++) {
-    u8 bit = 1 << i;
-    if(bit_pattern[7 - i] == '1' && !(bit & byte)) {
-      return false;
-    }
-    if(bit_pattern[7 - i] == '0' && (bit & byte)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-bool matches(u8 code, u8 pattern, u8 mask) {
-  u8 masked_code = code & mask;
-  return masked_code == pattern;
-}
-
-bool matches_pattern(const char* pattern, u8 data) {
-  u8 mask = 0;
-  u8 pattern_byte = 0;
-  for(int i = 0; i < 8; i++) {
-    char c = pattern[i];
-    u8 byte_pos = 7 - i;
-    if(c == '1') {
-      pattern_byte |= 1 << byte_pos;
-      mask |= 1 << byte_pos;
-    }
-    else if(c == '0') {
-      mask |= 1 << byte_pos;
-    }
-  }
-
-  return matches(data, pattern_byte, mask);
-}
-
 // See first row of MOV
 SrcDest decode_src_dest_reg_mem(const u8* buffer, u8* move) {
   // NOTE: the rest of this is common to many other operations
@@ -437,46 +396,71 @@ OpDesc decode_conditional_jmp(OpType jmp, const u8* buffer) {
   return result;
 }
 
-struct Row {
-  Row(const char* head, std::function<OpDesc(const u8*)> fn) {
+struct DecodeRow {
+  DecodeRow(const char* head, std::function<OpDesc(const u8*)> fn) {
     this->head_pattern = head;
-    this->decode_fn    = fn;
+    
+    { // Fill in the target bit pattern and the mask
+      this->mask = 0;
+      this->bit_pattern = 0;
+      for(int i = 0; i < 8; i++) {
+	char c = head_pattern[i];
+	u8 byte_pos = 7 - i;
+	if(c == '1') {
+	  this->bit_pattern |= 1 << byte_pos;
+	  this->mask |= 1 << byte_pos;
+	}
+	else if(c == '0') {
+	  this->mask |= 1 << byte_pos;
+	}
+      }
+    }
+    
+    this->decode_fn = fn;
   }
+
+  bool matches(u8 data) const {
+    u8 masked_code = data & this->mask;
+    return masked_code == bit_pattern;
+  }
+  
   const char* head_pattern;
+  u8 bit_pattern;
+  u8 mask;
   std::function<OpDesc(const u8*)> decode_fn;
 };
 
 OpDesc decode_operation(const u8 *buffer) {
-  static const Row rows[] = {
-    Row("1011****", decode_move_im_to_reg),
-    Row("100010**", decode_move),
-    Row("00***0**", decode_add_sub_cmp),
-    Row("100000**", decode_im_add_sub_cmp),
-    Row("00***10*", decode_im_to_accum_add_sub_cmp),
-    Row("01110100", [](const u8* buffer){ return decode_conditional_jmp(OpType::JE, buffer);}), // JE
-    Row("01111100", [](const u8* buffer){ return decode_conditional_jmp(OpType::JL, buffer);}), // JL
-    Row("01111110", [](const u8* buffer){ return decode_conditional_jmp(OpType::JLE, buffer);}), // JLE
-    Row("01110010", [](const u8* buffer){ return decode_conditional_jmp(OpType::JB, buffer);}), // JB
-    Row("01110110", [](const u8* buffer){ return decode_conditional_jmp(OpType::JBE, buffer);}), // JBE
-    Row("01111010", [](const u8* buffer){ return decode_conditional_jmp(OpType::JP, buffer);}), // JP
-    Row("01110000", [](const u8* buffer){ return decode_conditional_jmp(OpType::JO, buffer);}), // JO
-    Row("01111000", [](const u8* buffer){ return decode_conditional_jmp(OpType::JS, buffer);}), // JS
-    Row("01110101", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNE, buffer);}), // JNE
-    Row("01111101", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNL, buffer);}), // JNL
-    Row("01111111", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNLE, buffer);}), // JNLE
-    Row("01110011", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNB, buffer);}), // JNB
-    Row("01110111", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNBE, buffer);}), // JNBE
-    Row("01111011", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNP, buffer);}), // JNP
-    Row("01110001", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNO, buffer);}), // JNO
-    Row("01111001", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNS, buffer);}), // JNS
-    Row("11100010", [](const u8* buffer){ return decode_conditional_jmp(OpType::LOOP, buffer);}), // LOOP
-    Row("11100001", [](const u8* buffer){ return decode_conditional_jmp(OpType::LOOPZ, buffer);}), // LOOPZ
-    Row("11100000", [](const u8* buffer){ return decode_conditional_jmp(OpType::LOOPNZ, buffer);}), // LOOPNZ
-    Row("11100011", [](const u8* buffer){ return decode_conditional_jmp(OpType::JCXZ, buffer);}), // JCXZ
+  static const DecodeRow rows[] = {
+    DecodeRow("1011****", decode_move_im_to_reg),
+    DecodeRow("100010**", decode_move),
+    DecodeRow("00***0**", decode_add_sub_cmp),
+    DecodeRow("100000**", decode_im_add_sub_cmp),
+    DecodeRow("00***10*", decode_im_to_accum_add_sub_cmp),
+    DecodeRow("01110100", [](const u8* buffer){ return decode_conditional_jmp(OpType::JE, buffer);}), 
+    DecodeRow("01111100", [](const u8* buffer){ return decode_conditional_jmp(OpType::JL, buffer);}), 
+    DecodeRow("01111110", [](const u8* buffer){ return decode_conditional_jmp(OpType::JLE, buffer);}),
+    DecodeRow("01110010", [](const u8* buffer){ return decode_conditional_jmp(OpType::JB, buffer);}), 
+    DecodeRow("01110110", [](const u8* buffer){ return decode_conditional_jmp(OpType::JBE, buffer);}),
+    DecodeRow("01111010", [](const u8* buffer){ return decode_conditional_jmp(OpType::JP, buffer);}), 
+    DecodeRow("01110000", [](const u8* buffer){ return decode_conditional_jmp(OpType::JO, buffer);}), 
+    DecodeRow("01111000", [](const u8* buffer){ return decode_conditional_jmp(OpType::JS, buffer);}), 
+    DecodeRow("01110101", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNE, buffer);}),
+    DecodeRow("01111101", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNL, buffer);}),
+    DecodeRow("01111111", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNLE, buffer);}),
+    DecodeRow("01110011", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNB, buffer);}), 
+    DecodeRow("01110111", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNBE, buffer);}),
+    DecodeRow("01111011", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNP, buffer);}), 
+    DecodeRow("01110001", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNO, buffer);}), 
+    DecodeRow("01111001", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNS, buffer);}), 
+    DecodeRow("11100010", [](const u8* buffer){ return decode_conditional_jmp(OpType::LOOP, buffer);}),
+    DecodeRow("11100001", [](const u8* buffer){ return decode_conditional_jmp(OpType::LOOPZ, buffer);}), 
+    DecodeRow("11100000", [](const u8* buffer){ return decode_conditional_jmp(OpType::LOOPNZ, buffer);}),
+    DecodeRow("11100011", [](const u8* buffer){ return decode_conditional_jmp(OpType::JCXZ, buffer);}),
   };
 
   for(size_t i = 0; i < SIZE(rows); i++) {
-    if(matches_pattern(rows[i].head_pattern, buffer[0])) {
+    if(rows[i].matches(buffer[0])) {
       return rows[i].decode_fn(buffer);
     }
   }
