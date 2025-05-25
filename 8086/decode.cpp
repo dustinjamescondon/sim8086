@@ -30,6 +30,9 @@ enum class OpType {
   JNP,
   JNO,
   JNS,
+  LOOP,
+  LOOPZ,
+  LOOPNZ,
   JCXZ,
   COUNT
 };
@@ -201,53 +204,53 @@ bool matches_pattern(const char* pattern, u8 data) {
 
 // See first row of MOV
 SrcDest decode_src_dest_reg_mem(const u8* buffer, u8* move) {
-    // NOTE: the rest of this is common to many other operations
-    static const u8 w_mask  = 0b00000001;
-    u8 w = buffer[0] & w_mask;
-    static const u8 d_mask  = 0b00000010;
-    u8 d = buffer[0] & d_mask;
-    ModType mod_type = decode_mod(buffer[1]);
+  // NOTE: the rest of this is common to many other operations
+  static const u8 w_mask  = 0b00000001;
+  u8 w = buffer[0] & w_mask;
+  static const u8 d_mask  = 0b00000010;
+  u8 d = buffer[0] & d_mask;
+  ModType mod_type = decode_mod(buffer[1]);
 
-    SrcDest result{};
+  SrcDest result{};
 
-    u8 rm_mask  = 0b00000111;
-    u8 rm       = (buffer[1] & rm_mask);
-    u8 reg_mask = 0b00111000;
-    u8 reg      = (buffer[1] & reg_mask) >> 3;
-    const char* rm_part = decode_rm(rm, mod_type, (bool)w);
+  u8 rm_mask  = 0b00000111;
+  u8 rm       = (buffer[1] & rm_mask);
+  u8 reg_mask = 0b00111000;
+  u8 reg      = (buffer[1] & reg_mask) >> 3;
+  const char* rm_part = decode_rm(rm, mod_type, (bool)w);
     
-    switch(mod_type) {
-      case ModType::MEM_MODE:{
-	*move = 2;
-	sprintf(result.dest, "%s", rm_part);
-      }
-	break;
-      case ModType::MEM_MODE_DISP8:{
-	u8 disp = buffer[2];
-	*move = 3;
-	sprintf(result.dest, "[%s + %d]", rm_part, disp);
-      }
-	break;
-      case ModType::MEM_MODE_DISP16: {
-	u16 disp = join(buffer[2], buffer[3]);	
-	*move = 4;
-	sprintf(result.dest, "[%s + %d]", rm_part, disp);
-      }
-	break;
-      case ModType::REG_MODE: {
-	*move = 2;
-	sprintf(result.dest, "%s", rm_part);
-      }
-	break;
+  switch(mod_type) {
+    case ModType::MEM_MODE:{
+      *move = 2;
+      sprintf(result.dest, "%s", rm_part);
     }
+      break;
+    case ModType::MEM_MODE_DISP8:{
+      u8 disp = buffer[2];
+      *move = 3;
+      sprintf(result.dest, "[%s + %d]", rm_part, disp);
+    }
+      break;
+    case ModType::MEM_MODE_DISP16: {
+      u16 disp = join(buffer[2], buffer[3]);	
+      *move = 4;
+      sprintf(result.dest, "[%s + %d]", rm_part, disp);
+    }
+      break;
+    case ModType::REG_MODE: {
+      *move = 2;
+      sprintf(result.dest, "%s", rm_part);
+    }
+      break;
+  }
    
-    strcpy(result.src, decode_reg(reg, (bool)w));
+  strcpy(result.src, decode_reg(reg, (bool)w));
  
-    if(d) {
-      std::swap(result.dest, result.src);
-    }
+  if(d) {
+    std::swap(result.dest, result.src);
+  }
 
-    return result;
+  return result;
 }
 
 u16 extract_data(const u8* data, bool w, bool s, u8 *data_size) {
@@ -266,121 +269,121 @@ u16 extract_data(const u8* data, bool w, bool s, u8 *data_size) {
 }
 
 SrcDest decode_src_dest_im_to_acc(const u8* buffer, u8* move) {
-    static const u8 w_mask  = 0b00000001;
-    u8 w = buffer[0] & w_mask;
+  static const u8 w_mask  = 0b00000001;
+  u8 w = buffer[0] & w_mask;
 
-    SrcDest result{};
-    u16 data = w ? join(buffer[1], buffer[2]) : join(buffer[1], 0);
-    sprintf(result.src, "%d", data);
-    sprintf(result.dest, "%s", w ? "ax" : "al");
+  SrcDest result{};
+  u16 data = w ? join(buffer[1], buffer[2]) : join(buffer[1], 0);
+  sprintf(result.src, "%d", data);
+  sprintf(result.dest, "%s", w ? "ax" : "al");
 
-    *move = w ? 3 : 2;
+  *move = w ? 3 : 2;
     
-    return result;
+  return result;
 }
 
 // See second row of ADD
 SrcDest decode_src_dest_im_to_reg_mem(const u8* buffer, u8* move) {
-    // NOTE: the rest of this is common to many other operations
-    static const u8 w_mask  = 0b00000001;
-    u8 w = buffer[0] & w_mask;
-    static const u8 s_mask  = 0b00000010;
-    u8 s = buffer[0] & s_mask;
+  // NOTE: the rest of this is common to many other operations
+  static const u8 w_mask  = 0b00000001;
+  u8 w = buffer[0] & w_mask;
+  static const u8 s_mask  = 0b00000010;
+  u8 s = buffer[0] & s_mask;
     
-    ModType mod_type = decode_mod(buffer[1]);
+  ModType mod_type = decode_mod(buffer[1]);
 
-    SrcDest result{};
+  SrcDest result{};
 
-    u8 rm_mask  = 0b00000111;
-    u8 rm       = (buffer[1] & rm_mask);
-    const char* rm_part = decode_rm(rm, mod_type, (bool)w);
+  u8 rm_mask  = 0b00000111;
+  u8 rm       = (buffer[1] & rm_mask);
+  const char* rm_part = decode_rm(rm, mod_type, (bool)w);
 
-    u16 data = 0;
+  u16 data = 0;
     
-    switch(mod_type) {
-      case ModType::MEM_MODE:{
-	u8 data_size = 0;
-	const u8* data_start = buffer + 2;
-	data = extract_data(data_start, w, s, &data_size);
-	*move =
-	  2            // the instruction
-	  + data_size; // the data
-	const char* size = w ? "word" : "byte";
-	sprintf(result.dest, "%s %s", size, rm_part);
-      }
-	break;
-      case ModType::MEM_MODE_DISP8:{
-	u8 disp = buffer[2];
-	u8 data_size = 0;
-	const u8* data_start = buffer + 3;
-	data = extract_data(data_start, w, s, &data_size);
-       
-	*move =
-	  2            // the instruction
-	  + 1          // the displacement
-	  + data_size; // the data
-
-	const char* size = w ? "word" : "byte";
-	sprintf(result.dest, "%s [%s + %d]", size, rm_part, disp);
-      }
-	break;
-      case ModType::MEM_MODE_DISP16: {
-	u16 disp = join(buffer[2], buffer[3]);
-	u8 data_size = 0;
-	const u8* data_start = buffer + 4;
-	data = extract_data(data_start, w, s, &data_size);
-	
-	*move =
-	  2            // the instruction
-	  + 2          // the displacement
-	  + data_size; // the data
-	const char* size = w ? "word" : "byte";
-	sprintf(result.dest, "%s [%s + %d]", size, rm_part, disp);
-      }
-	break;
-      case ModType::REG_MODE: {
-	u8 data_size = 0;
-	const u8* data_start = buffer + 2;
-	data = extract_data(data_start, w, s, &data_size);
-	*move =
-	  2            // the instruction
-	  + data_size; // the data
-	sprintf(result.dest, "%s", rm_part);
-      }
-	break;
+  switch(mod_type) {
+    case ModType::MEM_MODE:{
+      u8 data_size = 0;
+      const u8* data_start = buffer + 2;
+      data = extract_data(data_start, w, s, &data_size);
+      *move =
+	2            // the instruction
+	+ data_size; // the data
+      const char* size = w ? "word" : "byte";
+      sprintf(result.dest, "%s %s", size, rm_part);
     }
-    sprintf(result.src, "%d", data);
+      break;
+    case ModType::MEM_MODE_DISP8:{
+      u8 disp = buffer[2];
+      u8 data_size = 0;
+      const u8* data_start = buffer + 3;
+      data = extract_data(data_start, w, s, &data_size);
+       
+      *move =
+	2            // the instruction
+	+ 1          // the displacement
+	+ data_size; // the data
+
+      const char* size = w ? "word" : "byte";
+      sprintf(result.dest, "%s [%s + %d]", size, rm_part, disp);
+    }
+      break;
+    case ModType::MEM_MODE_DISP16: {
+      u16 disp = join(buffer[2], buffer[3]);
+      u8 data_size = 0;
+      const u8* data_start = buffer + 4;
+      data = extract_data(data_start, w, s, &data_size);
+	
+      *move =
+	2            // the instruction
+	+ 2          // the displacement
+	+ data_size; // the data
+      const char* size = w ? "word" : "byte";
+      sprintf(result.dest, "%s [%s + %d]", size, rm_part, disp);
+    }
+      break;
+    case ModType::REG_MODE: {
+      u8 data_size = 0;
+      const u8* data_start = buffer + 2;
+      data = extract_data(data_start, w, s, &data_size);
+      *move =
+	2            // the instruction
+	+ data_size; // the data
+      sprintf(result.dest, "%s", rm_part);
+    }
+      break;
+  }
+  sprintf(result.src, "%d", data);
     
-    return result;
+  return result;
 }
 
 OpDesc decode_move_im_to_reg(const u8* buffer) {
-    static const u8 w_mask = 0b00001000;
-    u8 w = buffer[0] & w_mask;
+  static const u8 w_mask = 0b00001000;
+  u8 w = buffer[0] & w_mask;
     
-    OpDesc result{};
-    result.type = OpType::MOV;
+  OpDesc result{};
+  result.type = OpType::MOV;
 
-    u16 data = w
-      ? join(buffer[1], buffer[2])
-      : join(buffer[1], 0);
-    sprintf(result.src_dest.src, "%d", data);
+  u16 data = w
+    ? join(buffer[1], buffer[2])
+    : join(buffer[1], 0);
+  sprintf(result.src_dest.src, "%d", data);
 
-    result.move = w ? 3 : 2;
-    static const u8 reg_mask = 0b00000111;
-    u8 reg = buffer[0] & reg_mask;
-    strcpy(result.src_dest.dest, decode_reg(reg, w));
-    return result;
+  result.move = w ? 3 : 2;
+  static const u8 reg_mask = 0b00000111;
+  u8 reg = buffer[0] & reg_mask;
+  strcpy(result.src_dest.dest, decode_reg(reg, w));
+  return result;
 }
 
 OpDesc decode_move(const u8* buffer) {
-    OpDesc result{};
+  OpDesc result{};
     
-    SrcDest src_dest = decode_src_dest_reg_mem(buffer, &result.move);
-    strcpy(result.src_dest.src,  src_dest.src);
-    strcpy(result.src_dest.dest, src_dest.dest);
+  SrcDest src_dest = decode_src_dest_reg_mem(buffer, &result.move);
+  strcpy(result.src_dest.src,  src_dest.src);
+  strcpy(result.src_dest.dest, src_dest.dest);
     
-    return result;
+  return result;
 }
 
 static const u8 add_pattern            = 0b00000000;
@@ -388,26 +391,26 @@ static const u8 sub_pattern            = 0b00000101;
 static const u8 cmp_pattern            = 0b00000111;
 
 OpDesc decode_im_add_sub_cmp(const u8* buffer) {
-    static const u8 mask  = 0b00111000;
-    static const u8 shift = 3;
-    OpDesc result{};
-    u8 op = (buffer[1] & mask) >> shift;
-    switch(op) {
-      case add_pattern:
-	result.type = OpType::ADD;
-	break;
-      case sub_pattern:
-	result.type = OpType::SUB;
-	break;
-      case cmp_pattern:
-	result.type = OpType::CMP;
-	break;
-      default:
-	assert(false && "immediate add/sub/cmp pattern not matched");
-    }
+  static const u8 mask  = 0b00111000;
+  static const u8 shift = 3;
+  OpDesc result{};
+  u8 op = (buffer[1] & mask) >> shift;
+  switch(op) {
+    case add_pattern:
+      result.type = OpType::ADD;
+      break;
+    case sub_pattern:
+      result.type = OpType::SUB;
+      break;
+    case cmp_pattern:
+      result.type = OpType::CMP;
+      break;
+    default:
+      assert(false && "immediate add/sub/cmp pattern not matched");
+  }
 
-    result.src_dest = decode_src_dest_im_to_reg_mem(buffer, &result.move);
-    return result;
+  result.src_dest = decode_src_dest_im_to_reg_mem(buffer, &result.move);
+  return result;
 }
 
 OpDesc decode_add_sub_cmp(const u8* buffer) {
@@ -476,66 +479,40 @@ struct Row {
 };
 
 OpDesc decode_operation(const u8 *buffer) {
-static const Row rows[] = {
-  Row("1011****", decode_move_im_to_reg),
-  Row("100010**", decode_move),
-  Row("100000**", decode_im_add_sub_cmp),
-  Row("01110100", [](const u8* buffer){ return decode_conditional_jmp(OpType::JE, buffer);}), // JE
-  Row("01111100", [](const u8* buffer){ return decode_conditional_jmp(OpType::JL, buffer);}), // JL
-  Row("01111110", [](const u8* buffer){ return decode_conditional_jmp(OpType::JLE, buffer);}), // JLE
-  Row("01110010", [](const u8* buffer){ return decode_conditional_jmp(OpType::JB, buffer);}), // JB
-  Row("01110110", [](const u8* buffer){ return decode_conditional_jmp(OpType::JBE, buffer);}), // JBE
-  Row("01111010", [](const u8* buffer){ return decode_conditional_jmp(OpType::JP, buffer);}), // JP
-  Row("01110000", [](const u8* buffer){ return decode_conditional_jmp(OpType::JO, buffer);}), // JO
-  Row("01111000", [](const u8* buffer){ return decode_conditional_jmp(OpType::JS, buffer);}), // JS
-  Row("01110101", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNE, buffer);}), // JNE
-  Row("01111101", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNL, buffer);}), // JNL
-  Row("01111111", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNLE, buffer);}), // JNLE
-  Row("01110011", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNB, buffer);}), // JNB
-  Row("01110111", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNBE, buffer);}), // JNBE
-  Row("01111011", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNP, buffer);}), // JNP
-  Row("01110001", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNO, buffer);}), // JNO
-  Row("01111001", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNS, buffer);}), // JNS
-  Row("11100011", [](const u8* buffer){ return decode_conditional_jmp(OpType::JCXZ, buffer);}), // JCXZ
-};
+  static const Row rows[] = {
+    Row("1011****", decode_move_im_to_reg),
+    Row("100010**", decode_move),
+    Row("00***0**", decode_add_sub_cmp),
+    Row("100000**", decode_im_add_sub_cmp),
+    Row("00***10*", decode_im_to_accum_add_sub_cmp),
+    Row("01110100", [](const u8* buffer){ return decode_conditional_jmp(OpType::JE, buffer);}), // JE
+    Row("01111100", [](const u8* buffer){ return decode_conditional_jmp(OpType::JL, buffer);}), // JL
+    Row("01111110", [](const u8* buffer){ return decode_conditional_jmp(OpType::JLE, buffer);}), // JLE
+    Row("01110010", [](const u8* buffer){ return decode_conditional_jmp(OpType::JB, buffer);}), // JB
+    Row("01110110", [](const u8* buffer){ return decode_conditional_jmp(OpType::JBE, buffer);}), // JBE
+    Row("01111010", [](const u8* buffer){ return decode_conditional_jmp(OpType::JP, buffer);}), // JP
+    Row("01110000", [](const u8* buffer){ return decode_conditional_jmp(OpType::JO, buffer);}), // JO
+    Row("01111000", [](const u8* buffer){ return decode_conditional_jmp(OpType::JS, buffer);}), // JS
+    Row("01110101", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNE, buffer);}), // JNE
+    Row("01111101", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNL, buffer);}), // JNL
+    Row("01111111", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNLE, buffer);}), // JNLE
+    Row("01110011", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNB, buffer);}), // JNB
+    Row("01110111", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNBE, buffer);}), // JNBE
+    Row("01111011", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNP, buffer);}), // JNP
+    Row("01110001", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNO, buffer);}), // JNO
+    Row("01111001", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNS, buffer);}), // JNS
+    Row("11100010", [](const u8* buffer){ return decode_conditional_jmp(OpType::LOOP, buffer);}), // LOOP
+    Row("11100001", [](const u8* buffer){ return decode_conditional_jmp(OpType::LOOPZ, buffer);}), // LOOPZ
+    Row("11100000", [](const u8* buffer){ return decode_conditional_jmp(OpType::LOOPNZ, buffer);}), // LOOPNZ
+    Row("11100011", [](const u8* buffer){ return decode_conditional_jmp(OpType::JCXZ, buffer);}), // JCXZ
+  };
 
- for(size_t i = 0; i < SIZE(rows); i++) {
-   if(matches_pattern(rows[i].head_pattern, buffer[0])) {
-     //printf("Matched this one! %s", rows[i].head_pattern);
-     //return rows[i].decode_fn(buffer);
-   }
- }
-  static const u8 mov_im_to_reg      = 0b10110000;
-  static const u8 mov_im_to_reg_mask = 0b11110000;
-  if(matches(buffer[0], mov_im_to_reg, mov_im_to_reg_mask)) {
-    return decode_move_im_to_reg(buffer);
+  for(size_t i = 0; i < SIZE(rows); i++) {
+    if(matches_pattern(rows[i].head_pattern, buffer[0])) {
+      return rows[i].decode_fn(buffer);
+    }
   }
-
-  static const u8 mov_pattern      = 0b10001000;
-  static const u8 mov_pattern_mask = 0b11111100;
-  if(matches(buffer[0], mov_pattern, mov_pattern_mask)) {
-    return decode_move(buffer);
-  }
-
-  static const u8 im_add_sub_cmp_pattern = 0b10000000;
-  static const u8 im_add_sub_cmp_mask    = 0b10000000;
-  // immediate to mem/reg
-  if(matches(buffer[0], im_add_sub_cmp_pattern, im_add_sub_cmp_mask)) {
-    return decode_im_add_sub_cmp(buffer);
-  }
-
-  // reg/mem to reg/mem
-  static const u8 add_sub_cmp_pattern = 0b00000000;
-  static const u8 add_sub_cmp_mask    = 0b11000100;
-  if(matches(buffer[0], add_sub_cmp_pattern, add_sub_cmp_mask)) {
-    return decode_add_sub_cmp(buffer);
-  }
-
-  static const u8 im_to_accum_add_sub_cmp_pattern = 0b00000100;
-  static const u8 im_to_accum_add_sub_cmp_mask    = 0b00000100;
-  if(matches(buffer[0], im_to_accum_add_sub_cmp_pattern, im_to_accum_add_sub_cmp_mask)) {
-    return decode_im_to_accum_add_sub_cmp(buffer);
-  }
+ 
   assert(false && "missing decode");
   return OpDesc {};
 }
@@ -562,6 +539,9 @@ const char* decode_op(OpType op) {
     "jnp",
     "jno",
     "jns",
+    "loop",
+    "loopz",
+    "loopnz",
     "jcxz",
   };
 
@@ -573,10 +553,14 @@ void decode(const u8* buffer, u16* move, char result[]) {
   OpDesc operation = decode_operation(buffer);
   const char* op_str = decode_op(operation.type);
 
-  if(operation.type >= OpType::JE) {
-    sprintf(result, "%s ");
-  } else {
+  if(operation.type < OpType::JE) {
     sprintf(result, "%s %s, %s", op_str, operation.src_dest.dest, operation.src_dest.src);
+  } else {
+    if (operation.rel_jump >= 0) {
+      sprintf(result, "%s $+%d", op_str, operation.rel_jump);
+    } else {
+      sprintf(result, "%s $%d", op_str, operation.rel_jump);
+    }
   }
  
   *move = operation.move;
