@@ -7,6 +7,8 @@
 #include "bit_ops.cpp"
 #include <functional>
 
+#define SIZE(ARR) sizeof(ARR) / sizeof(ARR[0])
+
 enum class OpType {
   MOV = 0,
   ADD,
@@ -24,6 +26,7 @@ enum class OpType {
   JNL,
   JNLE,
   JNB,
+  JNBE,
   JNP,
   JNO,
   JNS,
@@ -176,6 +179,24 @@ bool matches(const char *bit_pattern, u8 byte) {
 bool matches(u8 code, u8 pattern, u8 mask) {
   u8 masked_code = code & mask;
   return masked_code == pattern;
+}
+
+bool matches_pattern(const char* pattern, u8 data) {
+  u8 mask = 0;
+  u8 pattern_byte = 0;
+  for(int i = 0; i < 8; i++) {
+    char c = pattern[i];
+    u8 byte_pos = 8 - i;
+    if(c == '1') {
+      pattern_byte |= 1 << byte_pos;
+      mask |= 1 << byte_pos;
+    }
+    else if(c == '0') {
+      mask |= 1 << byte_pos;
+    }
+  }
+
+  return matches(data, pattern_byte, mask);
 }
 
 // See first row of MOV
@@ -389,6 +410,54 @@ OpDesc decode_im_add_sub_cmp(const u8* buffer) {
     return result;
 }
 
+OpDesc decode_add_sub_cmp(const u8* buffer) {
+  static const u8 mask  = 0b00111000;
+  static const u8 shift = 3;
+
+  OpDesc result {};
+  u8 op = (buffer[0] & mask) >> shift;
+  switch(op) {
+    case add_pattern:
+      result.type = OpType::ADD;
+      break;
+    case sub_pattern:
+      result.type = OpType::SUB;
+      break;
+    case cmp_pattern:
+      result.type = OpType::CMP;
+      break;
+    default:
+      assert(false && "add/sub/cmp pattern not matched");
+  }
+
+  result.src_dest = decode_src_dest_reg_mem(buffer, &result.move);
+  return result;
+}
+
+OpDesc decode_im_to_accum_add_sub_cmp(const u8* buffer) {
+  static const u8 mask  = 0b00111000;
+  static const u8 shift = 3;
+
+  OpDesc result {};
+  u8 op = (buffer[0] & mask) >> shift;
+  switch(op) {
+    case add_pattern:
+      result.type = OpType::ADD;
+      break;
+    case sub_pattern:
+      result.type = OpType::SUB;
+      break;
+    case cmp_pattern:
+      result.type = OpType::CMP;
+      break;
+    default:
+      assert(false && "add/sub/cmp pattern not matched");
+  }
+    
+  result.src_dest = decode_src_dest_im_to_acc(buffer, &result.move);
+  return result;
+}
+
 OpDesc decode_conditional_jmp(OpType jmp, const u8* buffer) {
   OpDesc result{};
   result.type = jmp;
@@ -399,23 +468,43 @@ OpDesc decode_conditional_jmp(OpType jmp, const u8* buffer) {
 
 struct Row {
   Row(const char* head, std::function<OpDesc(const u8*)> fn) {
-    this->head      = head;
-    this->decode_fn = fn;
+    this->head_pattern = head;
+    this->decode_fn    = fn;
   }
-  const char* head;
+  const char* head_pattern;
   std::function<OpDesc(const u8*)> decode_fn;
 };
 
+OpDesc decode_operation(const u8 *buffer) {
 static const Row rows[] = {
   Row("1011****", decode_move_im_to_reg),
   Row("100010**", decode_move),
-  Row("1*******", decode_im_add_sub_cmp),
+  Row("100000**", decode_im_add_sub_cmp),
+  Row("01110100", [](const u8* buffer){ return decode_conditional_jmp(OpType::JE, buffer);}), // JE
+  Row("01111100", [](const u8* buffer){ return decode_conditional_jmp(OpType::JL, buffer);}), // JL
+  Row("01111110", [](const u8* buffer){ return decode_conditional_jmp(OpType::JLE, buffer);}), // JLE
+  Row("01110010", [](const u8* buffer){ return decode_conditional_jmp(OpType::JB, buffer);}), // JB
+  Row("01110110", [](const u8* buffer){ return decode_conditional_jmp(OpType::JBE, buffer);}), // JBE
+  Row("01111010", [](const u8* buffer){ return decode_conditional_jmp(OpType::JP, buffer);}), // JP
+  Row("01110000", [](const u8* buffer){ return decode_conditional_jmp(OpType::JO, buffer);}), // JO
+  Row("01111000", [](const u8* buffer){ return decode_conditional_jmp(OpType::JS, buffer);}), // JS
+  Row("01110101", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNE, buffer);}), // JNE
+  Row("01111101", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNL, buffer);}), // JNL
+  Row("01111111", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNLE, buffer);}), // JNLE
+  Row("01110011", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNB, buffer);}), // JNB
+  Row("01110111", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNBE, buffer);}), // JNBE
+  Row("01111011", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNP, buffer);}), // JNP
+  Row("01110001", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNO, buffer);}), // JNO
+  Row("01111001", [](const u8* buffer){ return decode_conditional_jmp(OpType::JNS, buffer);}), // JNS
+  Row("11100011", [](const u8* buffer){ return decode_conditional_jmp(OpType::JCXZ, buffer);}), // JCXZ
 };
 
-struct DecodeTable {
-};
-
-OpDesc decode_operation(const u8 *buffer) {
+ for(size_t i = 0; i < SIZE(rows); i++) {
+   if(matches_pattern(rows[i].head_pattern, buffer[0])) {
+     //printf("Matched this one! %s", rows[i].head_pattern);
+     //return rows[i].decode_fn(buffer);
+   }
+ }
   static const u8 mov_im_to_reg      = 0b10110000;
   static const u8 mov_im_to_reg_mask = 0b11110000;
   if(matches(buffer[0], mov_im_to_reg, mov_im_to_reg_mask)) {
@@ -439,74 +528,14 @@ OpDesc decode_operation(const u8 *buffer) {
   static const u8 add_sub_cmp_pattern = 0b00000000;
   static const u8 add_sub_cmp_mask    = 0b11000100;
   if(matches(buffer[0], add_sub_cmp_pattern, add_sub_cmp_mask)) {
-    static const u8 mask  = 0b00111000;
-    static const u8 shift = 3;
-
-    OpDesc result {};
-    u8 op = (buffer[0] & mask) >> shift;
-    switch(op) {
-      case add_pattern:
-	result.type = OpType::ADD;
-	break;
-      case sub_pattern:
-	result.type = OpType::SUB;
-	break;
-      case cmp_pattern:
-	result.type = OpType::CMP;
-	break;
-      default:
-	assert(false && "add/sub/cmp pattern not matched");
-    }
-
-    result.src_dest = decode_src_dest_reg_mem(buffer, &result.move);
-    return result;
+    return decode_add_sub_cmp(buffer);
   }
 
   static const u8 im_to_accum_add_sub_cmp_pattern = 0b00000100;
   static const u8 im_to_accum_add_sub_cmp_mask    = 0b00000100;
   if(matches(buffer[0], im_to_accum_add_sub_cmp_pattern, im_to_accum_add_sub_cmp_mask)) {
-    static const u8 mask  = 0b00111000;
-    static const u8 shift = 3;
-
-    OpDesc result {};
-    u8 op = (buffer[0] & mask) >> shift;
-    switch(op) {
-      case add_pattern:
-	result.type = OpType::ADD;
-	break;
-      case sub_pattern:
-	result.type = OpType::SUB;
-	break;
-      case cmp_pattern:
-	result.type = OpType::CMP;
-	break;
-      default:
-	assert(false && "add/sub/cmp pattern not matched");
-    }
-    
-    result.src_dest = decode_src_dest_im_to_acc(buffer, &result.move);
-    return result;
+    return decode_im_to_accum_add_sub_cmp(buffer);
   }
-
-  static u8 jump_codes[] {
-    0b01110100, // JE
-    0b01111100, // JL
-    0b01111110, // JLE
-    0b01110010, // JB
-    0b01110110, // JBE
-    0b01111010, // JP
-    0b01110000, // JO
-    0b01111000, // JS
-    0b01110101, // JNE
-    0b01111101, // JNL
-    0b01111111, // JNLE
-    0b01110011, // JNB
-    0b01110111, // JNBE
-    0b01111011, // JNP
-    0b01110001, // JNO
-    0b01111001, // JNS
-    0b11100011, // JCXZ
-  };
   assert(false && "missing decode");
   return OpDesc {};
 }
@@ -529,6 +558,7 @@ const char* decode_op(OpType op) {
     "jnl",
     "jnle",
     "jnb",
+    "jnbe",
     "jnp",
     "jno",
     "jns",
