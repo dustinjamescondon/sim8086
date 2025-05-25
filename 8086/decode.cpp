@@ -5,12 +5,30 @@
 #include <assert.h>
 #include <algorithm>
 #include "bit_ops.cpp"
+#include <functional>
 
 enum class OpType {
-  MOV,
+  MOV = 0,
   ADD,
   SUB,
   CMP,
+  JE,
+  JL,
+  JLE,
+  JB,
+  JBE,
+  JP,
+  JO,
+  JS,
+  JNE,
+  JNL,
+  JNLE,
+  JNB,
+  JNP,
+  JNO,
+  JNS,
+  JCXZ,
+  COUNT
 };
 
 enum class ModType {
@@ -34,8 +52,10 @@ struct SrcDest {
 
 struct OpDesc {
   OpType type;
-  char   src[50];
-  char   dest[50];
+  union { 
+    SrcDest src_dest;
+    i8      rel_jump;
+  };
   u8     move;
 };
 
@@ -313,10 +333,7 @@ SrcDest decode_src_dest_im_to_reg_mem(const u8* buffer, u8* move) {
     return result;
 }
 
-OpDesc decode_operation(const u8 *buffer) {
-  static const u8 mov_im_to_reg      = 0b10110000;
-  static const u8 mov_im_to_reg_mask = 0b11110000;
-  if(matches(buffer[0], mov_im_to_reg, mov_im_to_reg_mask)) {
+OpDesc decode_move_im_to_reg(const u8* buffer) {
     static const u8 w_mask = 0b00001000;
     u8 w = buffer[0] & w_mask;
     
@@ -326,36 +343,30 @@ OpDesc decode_operation(const u8 *buffer) {
     u16 data = w
       ? join(buffer[1], buffer[2])
       : join(buffer[1], 0);
-    sprintf(result.src, "%d", data);
+    sprintf(result.src_dest.src, "%d", data);
 
     result.move = w ? 3 : 2;
     static const u8 reg_mask = 0b00000111;
     u8 reg = buffer[0] & reg_mask;
-    strcpy(result.dest, decode_reg(reg, w));
+    strcpy(result.src_dest.dest, decode_reg(reg, w));
     return result;
-  }
+}
 
-  static const u8 mov_pattern      = 0b10001000;
-  static const u8 mov_pattern_mask = 0b11111100;
-  if(matches(buffer[0], mov_pattern, mov_pattern_mask)) {
+OpDesc decode_move(const u8* buffer) {
     OpDesc result{};
     
     SrcDest src_dest = decode_src_dest_reg_mem(buffer, &result.move);
-    strcpy(result.src,  src_dest.src);
-    strcpy(result.dest, src_dest.dest);
+    strcpy(result.src_dest.src,  src_dest.src);
+    strcpy(result.src_dest.dest, src_dest.dest);
     
     return result;
-  }
+}
 
-  static const u8 im_add_sub_cmp_pattern = 0b10000000;
-  static const u8 im_add_sub_cmp_mask    = 0b10000000;
-  
-  static const u8 add_pattern            = 0b00000000;
-  static const u8 sub_pattern            = 0b00000101;
-  static const u8 cmp_pattern            = 0b00000111;
+static const u8 add_pattern            = 0b00000000;
+static const u8 sub_pattern            = 0b00000101;
+static const u8 cmp_pattern            = 0b00000111;
 
-  // immediate to mem/reg
-  if(matches(buffer[0], im_add_sub_cmp_pattern, im_add_sub_cmp_mask)) {    
+OpDesc decode_im_add_sub_cmp(const u8* buffer) {
     static const u8 mask  = 0b00111000;
     static const u8 shift = 3;
     OpDesc result{};
@@ -374,10 +385,54 @@ OpDesc decode_operation(const u8 *buffer) {
 	assert(false && "immediate add/sub/cmp pattern not matched");
     }
 
-    SrcDest src_dest = decode_src_dest_im_to_reg_mem(buffer, &result.move);
-    strcpy(result.src, src_dest.src);
-    strcpy(result.dest, src_dest.dest);
+    result.src_dest = decode_src_dest_im_to_reg_mem(buffer, &result.move);
     return result;
+}
+
+OpDesc decode_conditional_jmp(OpType jmp, const u8* buffer) {
+  OpDesc result{};
+  result.type = jmp;
+  result.move = 2;
+  result.rel_jump = (i8)buffer[1];
+  return result;
+}
+
+struct Row {
+  Row(const char* head, std::function<OpDesc(const u8*)> fn) {
+    this->head      = head;
+    this->decode_fn = fn;
+  }
+  const char* head;
+  std::function<OpDesc(const u8*)> decode_fn;
+};
+
+static const Row rows[] = {
+  Row("1011****", decode_move_im_to_reg),
+  Row("100010**", decode_move),
+  Row("1*******", decode_im_add_sub_cmp),
+};
+
+struct DecodeTable {
+};
+
+OpDesc decode_operation(const u8 *buffer) {
+  static const u8 mov_im_to_reg      = 0b10110000;
+  static const u8 mov_im_to_reg_mask = 0b11110000;
+  if(matches(buffer[0], mov_im_to_reg, mov_im_to_reg_mask)) {
+    return decode_move_im_to_reg(buffer);
+  }
+
+  static const u8 mov_pattern      = 0b10001000;
+  static const u8 mov_pattern_mask = 0b11111100;
+  if(matches(buffer[0], mov_pattern, mov_pattern_mask)) {
+    return decode_move(buffer);
+  }
+
+  static const u8 im_add_sub_cmp_pattern = 0b10000000;
+  static const u8 im_add_sub_cmp_mask    = 0b10000000;
+  // immediate to mem/reg
+  if(matches(buffer[0], im_add_sub_cmp_pattern, im_add_sub_cmp_mask)) {
+    return decode_im_add_sub_cmp(buffer);
   }
 
   // reg/mem to reg/mem
@@ -403,9 +458,7 @@ OpDesc decode_operation(const u8 *buffer) {
 	assert(false && "add/sub/cmp pattern not matched");
     }
 
-    SrcDest src_dest = decode_src_dest_reg_mem(buffer, &result.move);
-    strcpy(result.src, src_dest.src);
-    strcpy(result.dest, src_dest.dest);
+    result.src_dest = decode_src_dest_reg_mem(buffer, &result.move);
     return result;
   }
 
@@ -431,30 +484,70 @@ OpDesc decode_operation(const u8 *buffer) {
 	assert(false && "add/sub/cmp pattern not matched");
     }
     
-    SrcDest src_dest = decode_src_dest_im_to_acc(buffer, &result.move);
-    strcpy(result.src, src_dest.src);
-    strcpy(result.dest, src_dest.dest);
+    result.src_dest = decode_src_dest_im_to_acc(buffer, &result.move);
     return result;
   }
 
+  static u8 jump_codes[] {
+    0b01110100, // JE
+    0b01111100, // JL
+    0b01111110, // JLE
+    0b01110010, // JB
+    0b01110110, // JBE
+    0b01111010, // JP
+    0b01110000, // JO
+    0b01111000, // JS
+    0b01110101, // JNE
+    0b01111101, // JNL
+    0b01111111, // JNLE
+    0b01110011, // JNB
+    0b01110111, // JNBE
+    0b01111011, // JNP
+    0b01110001, // JNO
+    0b01111001, // JNS
+    0b11100011, // JCXZ
+  };
   assert(false && "missing decode");
   return OpDesc {};
 }
 
 const char* decode_op(OpType op) {
-  switch(op) {
-    case OpType::MOV: return "mov"; break;
-    case OpType::ADD: return "add"; break;
-    case OpType::SUB: return "sub"; break;
-    case OpType::CMP: return "cmp"; break;
-    default: assert(false && "op string table not filled out");
-  }
+  static const char * op_strings[] {
+    "mov",
+    "add",
+    "sub",
+    "cmp",
+    "je",
+    "jl",
+    "jle",
+    "jb",
+    "jbe",
+    "jp",
+    "jo",
+    "js",
+    "jne",
+    "jnl",
+    "jnle",
+    "jnb",
+    "jnp",
+    "jno",
+    "jns",
+    "jcxz",
+  };
+
+  return op_strings[(int)op];
 }
 
 // Fills out the result field with the assembly
 void decode(const u8* buffer, u16* move, char result[]) {
   OpDesc operation = decode_operation(buffer);
   const char* op_str = decode_op(operation.type);
-  sprintf(result, "%s %s, %s", op_str, operation.dest, operation.src);
+
+  if(operation.type >= OpType::JE) {
+    sprintf(result, "%s ");
+  } else {
+    sprintf(result, "%s %s, %s", op_str, operation.src_dest.dest, operation.src_dest.src);
+  }
+ 
   *move = operation.move;
 }  

@@ -2,8 +2,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-typedef int16_t i16;
-typedef uint16_t u16;
+typedef char          i8;
+typedef int16_t       i16;
+typedef uint16_t      u16;
 typedef unsigned char u8;
 
 u16 join(u8 lower, u8 upper) {
