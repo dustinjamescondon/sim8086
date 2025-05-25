@@ -186,7 +186,7 @@ bool matches_pattern(const char* pattern, u8 data) {
   u8 pattern_byte = 0;
   for(int i = 0; i < 8; i++) {
     char c = pattern[i];
-    u8 byte_pos = 8 - i;
+    u8 byte_pos = 7 - i;
     if(c == '1') {
       pattern_byte |= 1 << byte_pos;
       mask |= 1 << byte_pos;
